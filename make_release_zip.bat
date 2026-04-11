@@ -21,7 +21,7 @@ echo   "channel_login": "your_channel_name",
 echo   "client_id": "your_client_id",
 echo   "client_secret": "your_client_secret",
 echo   "scopes": [
-echo     "channel:read:redemptions"
+echo     "CHANNEL_READ_REDEMPTIONS"
 echo   ],
 echo   "rewards": {
 echo     "Kill Link": { "action": "kill_link" },
