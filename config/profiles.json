@@ -1,0 +1,44 @@
+{
+  "profiles": [
+    {
+      "name": "SoH Build Local",
+      "build_hash": "cd584df1e3a57bb0",
+      "version_label": "SoH local build",
+      "health": {
+        "strategy": "module_offset",
+        "module": "soh.exe",
+        "current_offset": "0x209CE70",
+        "max_offset": "0x209CE6E"
+      },
+      "rupees": {
+        "strategy": "module_offset",
+        "module": "soh.exe",
+        "offset": "0x209CE74"
+      },
+      "save_context": {
+        "strategy": "module_offset",
+        "module": "soh.exe",
+        "base_offset": "0x209CE40",
+        "inventory_items_offset": "0x0074",
+        "inventory_ammo_offset": "0x008C",
+        "equipment_offset": "0x009C",
+        "upgrades_offset": "0x00A0",
+        "quest_items_offset": "0x00A4"
+      },
+      "ammo_runtime": {
+        "strategy": "module_offset",
+        "module": "soh.exe",
+        "base_offset": "0x209CEE4"
+      },
+      "items_runtime": {
+        "strategy": "module_offset",
+        "module": "soh.exe",
+        "base_offset": "0x209CECC"
+      },
+      "gplaystate_ptr": "soh.exe+0x2098530",
+      "link_state": {
+        "player_offset": "0x400"
+      }
+    }
+  ]
+}

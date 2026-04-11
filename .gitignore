@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# PyInstaller / build outputs
+build/
+dist/
+*.spec.bak
+
+# Local packaged outputs
+OOTCC.exe
+OOTCC_portable.zip
+OOTCC_portable/
+SoHBridgeV10.exe
+SoHBridgeV10_portable.zip
+SoHBridgeV10_portable/
+
+# Local Twitch secrets
+config/twitch_config.json
+config/twitch_tokens.json
+
+# Keep safe sample/config files in repo
+!config/process_names.json
+!config/profiles.json
+!config/twitch_config_exemple.json
+!config/twitch_config.sample.json
+!config/twitch_tokens.sample.json
+
+# Native bridge binaries must not go to GitHub
+tools/link_state_bridge/*.exe
+tools/link_state_bridge/*.dll
+tools/link_state_bridge/**/*.exe
+tools/link_state_bridge/**/*.dll
+
+# Visual Studio / native artifacts
+.vs/
+*.obj
+*.pdb
+*.ilk
+*.tlog
+*.log
+*.idb
+*.exp
+*.lib
+Debug/
+Release/
+x64/
+x86/
+
+# OS files
+Thumbs.db
+.DS_Store

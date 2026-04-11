@@ -1,0 +1,5 @@
+customtkinter>=5.2.2
+Pillow>=11.0.0
+psutil>=6.0.0
+twitchAPI>=4.5.0
+pyinstaller>=6.10.0

@@ -1,0 +1,71 @@
+{
+  "channel_login": "your_channel_name",
+  "client_id": "your_client_id",
+  "client_secret": "your_client_secret",
+  "scopes": [
+    "channel:read:redemptions"
+  ],
+  "rewards": {
+    "Kill Link": {
+      "action": "kill_link"
+    },
+    "1/4 heart": {
+      "action": "quarter_heart"
+    },
+    "Unequip all slots": {
+      "action": "unequip_all_slots"
+    },
+    "Rupees -50": {
+      "action": "rupees_delta",
+      "amount": -50
+    },
+    "Magic Fill": {
+      "action": "magic_fill"
+    },
+    "Magic Capacity": {
+      "action": "magic_capacity"
+    },
+    "Heart Fill": {
+      "action": "heart_fill"
+    },
+    "Heart Capacity": {
+      "action": "heart_capacity"
+    },
+    "Heart Remove Permanent": {
+      "action": "heart_remove_permanent"
+    },
+    "Item Toggle": {
+      "action": "item_toggle"
+    },
+    "Ammo": {
+      "action": "ammo"
+    },
+    "Equipment": {
+      "action": "equipment_toggle"
+    },
+    "Upgrade": {
+      "action": "upgrade"
+    },
+    "Clear Buttons": {
+      "action": "clear_buttons"
+    },
+    "Sword Mode": {
+      "action": "sword_mode"
+    },
+    "Teleport": {
+      "action": "teleport"
+    },
+    "Link Status": {
+      "action": "link_status"
+    },
+    "Link Special Status": {
+      "action": "link_special_status"
+    },
+    "Special Spawn": {
+      "action": "special_spawn"
+    },
+    "Quest Status": {
+      "action": "quest_status"
+    }
+  }
+}

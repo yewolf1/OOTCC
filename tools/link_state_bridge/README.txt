@@ -1,0 +1,1 @@
+Place soh_bridge_host.exe and soh_runtime_bridge.dll here after build.
