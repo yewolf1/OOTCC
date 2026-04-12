@@ -90,8 +90,18 @@ Typical dependencies include:
 Build dependency:
 - `pyinstaller`
 
-## Notes
+---
 
-- End users do **not** need Python when using the packaged executable.
-- The overlay and log windows are part of the application UI.
-- Some rewards rely on external bridge tools, so `tools` must remain available in the portable package.
+# 📄 License
+
+This project is released under the **MIT License**.  
+See the `LICENSE` file for details.
+
+---
+
+# 🤝 Contributions
+
+Suggestions, bug reports, UI ideas and feature requests are always welcome!  
+discord server : https://discord.com/invite/EDpVBx6P5e  
+discord : .yewolf  
+twitch : https://www.twitch.tv/yewolf  
