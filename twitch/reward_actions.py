@@ -4,6 +4,7 @@ import time
 from typing import TYPE_CHECKING
 
 from core.inventory_definitions import ITEM_SLOTS
+from twitch.input_matching import normalize_user_text, resolve_close_text
 from twitch.reward_catalog import (
     AMMO_NAME_TO_SLOT,
     EQUIPMENT_TOGGLE_NAMES,
@@ -45,7 +46,7 @@ class TwitchRewardExecutor:
             return message
 
         action = reward.get('action', '')
-        normalized = (user_input or '').strip().lower()
+        normalized = normalize_user_text(user_input)
 
         handlers = {
             'kill_link': self._kill_link,
@@ -163,7 +164,7 @@ class TwitchRewardExecutor:
         if action in {'heart_capacity', 'item_toggle'}:
             return
 
-        normalized_input = (user_input or '').strip().lower()
+        normalized_input = normalize_user_text(user_input)
         detail = self._build_overlay_detail(action, normalized_input)
         now = time.monotonic()
         self._overlay_events.append({
@@ -341,6 +342,7 @@ class TwitchRewardExecutor:
         return 'Twitch redeem applied: removed 1 permanent max heart'
 
     def _item_toggle(self, value: str) -> str:
+        value = resolve_close_text(value, ITEM_TOGGLE_NAMES.keys())
         slot = ITEM_TOGGLE_NAMES.get(value)
         if slot is None:
             raise ValueError('Item Toggle expects a valid item name')
@@ -375,6 +377,7 @@ class TwitchRewardExecutor:
         if len(parts) != 2 or parts[1] not in ('+10', '-10'):
             raise ValueError('Ammo expects: <ammo> +10 or <ammo> -10')
         ammo_name, delta_text = parts
+        ammo_name = resolve_close_text(ammo_name, AMMO_NAME_TO_SLOT.keys())
         slot = AMMO_NAME_TO_SLOT.get(ammo_name)
         if slot is None:
             raise ValueError('Ammo expects a valid ammo name')
@@ -384,6 +387,7 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: ammo {ammo_name} {delta_text}'
 
     def _equipment_toggle(self, value: str) -> str:
+        value = resolve_close_text(value, EQUIPMENT_TOGGLE_NAMES.keys())
         target = EQUIPMENT_TOGGLE_NAMES.get(value)
         if target is None:
             raise ValueError('Equipment expects a valid equipment name')
@@ -406,6 +410,7 @@ class TwitchRewardExecutor:
         if len(parts) != 2 or parts[0] not in ('add', 'remove'):
             raise ValueError('Upgrade expects: add <upgrade> or remove <upgrade>')
         verb, upgrade_name = parts
+        upgrade_name = resolve_close_text(upgrade_name, UPGRADE_NAMES.keys())
         upgrade_key = UPGRADE_NAMES.get(upgrade_name)
         if upgrade_key is None:
             raise ValueError('Upgrade expects a valid upgrade name')
@@ -422,6 +427,7 @@ class TwitchRewardExecutor:
 
     def _sword_mode(self, value: str) -> str:
         mapping = {'swordless': 'none', 'kokiri': 'kokiri', 'ms': 'master', 'biggoron': 'biggoron'}
+        value = resolve_close_text(value, mapping.keys())
         mode = mapping.get(value)
         if mode is None:
             raise ValueError('Sword Mode expects one of: swordless, kokiri, ms, biggoron')
@@ -429,6 +435,7 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: sword mode {value}'
 
     def _teleport(self, value: str) -> str:
+        value = resolve_close_text(value, list(TELEPORT_REWARD_NAMES.keys()) + ['random'])
         now = time.monotonic()
         if now - self._last_teleport_at < 10.0:
             remaining = max(1, int(10 - (now - self._last_teleport_at)))
@@ -446,6 +453,7 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: teleport {label}'
 
     def _link_status(self, value: str) -> str:
+        value = resolve_close_text(value, ('burn', 'freeze', 'shock'))
         if value == 'burn':
             self.controller.execute_dll_bridge_command('burn')
         elif value == 'freeze':
@@ -457,6 +465,7 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: link status {value}'
 
     def _link_special_status(self, value: str) -> str:
+        value = resolve_close_text(value, ('invisible on', 'invisible off', 'reverse on', 'reverse off'))
         if value == 'invisible on':
             self.controller.execute_dll_bridge_command('invisible_on')
         elif value == 'invisible off':
@@ -470,9 +479,10 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: link special status {value}'
 
     def _special_spawn(self, value: str) -> str:
+        value = resolve_close_text(value, ('bomb', 'bomb rain', 'explosion', 'cucco', 'darklink'))
         if value == 'bomb':
             self.controller.execute_dll_bridge_command('spawn_lit_bomb')
-        elif value == 'bomb_rain':
+        elif value == 'bomb rain':
             self.controller.execute_dll_bridge_command('bomb_rain')
         elif value == 'explosion':
             self.controller.execute_dll_bridge_command('spawn_explosion')
@@ -490,6 +500,7 @@ class TwitchRewardExecutor:
         if len(parts) != 2 or parts[0] not in ('add', 'remove'):
             raise ValueError('Quest Status expects: add <name> or remove <name>')
         verb, name = parts
+        name = resolve_close_text(name, QUEST_STATUS_NAMES.keys())
         flag_key = QUEST_STATUS_NAMES.get(name)
         if flag_key is None:
             raise ValueError('Quest Status expects a valid quest name')
