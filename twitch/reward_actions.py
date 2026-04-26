@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 import time
 from typing import TYPE_CHECKING
 
 from core.inventory_definitions import ITEM_SLOTS
-from twitch.input_matching import normalize_user_text, resolve_close_text
+from twitch.input_matching import resolve_input
 from twitch.reward_catalog import (
     AMMO_NAME_TO_SLOT,
     EQUIPMENT_TOGGLE_NAMES,
@@ -26,9 +25,6 @@ class TwitchRewardExecutor:
         self._heart_capacity_effects: list[dict[str, float | str]] = []
         self._heart_capacity_duration_seconds: float = 60.0
         self._item_toggle_duration_seconds: float = 60.0
-        self._magic_none_duration_seconds: float = 120.0
-        self._magic_none_effects: list[dict[str, float | str | int | bool]] = []
-        self._magic_none_restore_state: dict[str, int | bool] | None = None
         self._last_teleport_at: float = 0.0
         self._next_effect_id: int = 1
         self._current_user_name: str = ''
@@ -50,7 +46,7 @@ class TwitchRewardExecutor:
             return message
 
         action = reward.get('action', '')
-        normalized = normalize_user_text(user_input)
+        normalized = (user_input or '').strip().lower()
 
         handlers = {
             'kill_link': self._kill_link,
@@ -80,8 +76,7 @@ class TwitchRewardExecutor:
             raise ValueError(f'Unsupported Twitch action: {action}')
 
         try:
-            handler_input = user_input if action == 'ammo' else normalized
-            message = handler(handler_input)
+            message = handler(normalized)
             self._register_overlay_event(
                 reward_title=reward_title,
                 action=action,
@@ -99,7 +94,6 @@ class TwitchRewardExecutor:
     def tick(self) -> None:
         self._restore_expired_items()
         self._restore_expired_heart_capacity_effects()
-        self._restore_expired_magic_none_effects()
         self._prune_overlay_events()
 
     def get_overlay_entries(self) -> list[dict[str, str | int]]:
@@ -127,18 +121,6 @@ class TwitchRewardExecutor:
                 'viewer': str(effect.get('viewer', '')),
                 'title': 'Item Toggle',
                 'detail': str(effect.get('item_name', '')),
-                'remaining_seconds': remaining_seconds,
-                'created_at': float(effect.get('created_at', 0.0)),
-            })
-
-        for effect in self._magic_none_effects:
-            remaining_seconds = max(0, int(float(effect['expires_at']) - now + 0.999))
-            if remaining_seconds <= 0:
-                continue
-            entries.append({
-                'viewer': str(effect.get('viewer', '')),
-                'title': 'Magic Capacity',
-                'detail': 'none',
                 'remaining_seconds': remaining_seconds,
                 'created_at': float(effect.get('created_at', 0.0)),
             })
@@ -179,10 +161,10 @@ class TwitchRewardExecutor:
         ]
 
     def _register_overlay_event(self, reward_title: str, action: str, user_input: str, user_name: str) -> None:
-        if action in {'heart_capacity', 'item_toggle', 'magic_capacity'}:
+        if action in {'heart_capacity', 'item_toggle'}:
             return
 
-        normalized_input = normalize_user_text(user_input)
+        normalized_input = (user_input or '').strip().lower()
         detail = self._build_overlay_detail(action, normalized_input)
         now = time.monotonic()
         self._overlay_events.append({
@@ -252,7 +234,18 @@ class TwitchRewardExecutor:
             restore_value = int(effect['restore_value'])
             item_name = str(effect['item_name'])
             self.controller.set_item_value(slot, restore_value)
-            self.controller._log(f'Temporary item restored: {item_name}')
+            self.controller._log(f'Temporary item restored without button reassignment: {item_name}')
+
+    def _clear_buttons_using_item_value(self, item_value: int) -> list[str]:
+        button_state = self.controller.get_button_state()
+        cleared_buttons: list[str] = []
+        for button_key in ('cleft', 'cdown', 'cright', 'dup', 'ddown', 'dleft', 'dright'):
+            assignment = button_state.get(button_key, {})
+            if int(assignment.get('value', 0xFF)) != item_value:
+                continue
+            self.controller.clear_button_assignment(button_key)
+            cleared_buttons.append(button_key)
+        return cleared_buttons
 
     def _restore_expired_heart_capacity_effects(self) -> None:
         if not self.controller.adapter:
@@ -304,92 +297,12 @@ class TwitchRewardExecutor:
             raise ValueError('Magic Fill expects one of: full, half, empty')
         return f'Twitch redeem applied: magic fill {value}'
 
-    def _capture_magic_restore_state(self) -> dict[str, int | bool]:
-        adapter = self.controller._require_save_adapter()
-        return {
-            'magic_acquired': adapter.get_magic_acquired(),
-            'double_magic_acquired': adapter.get_double_magic_acquired(),
-            'magic_level': adapter.get_magic_level(),
-            'magic_current': adapter.get_magic_current(),
-            'magic_capacity': adapter.get_magic_capacity_value(),
-            'magic_fill_target': adapter.get_magic_fill_target_value(),
-            'magic_target': adapter.get_magic_target_value(),
-            'magic_state': adapter.get_magic_state_value(),
-            'prev_magic_state': adapter.get_prev_magic_state_value(),
-        }
-
-    def _restore_magic_state(self, state: dict[str, int | bool]) -> None:
-        adapter = self.controller._require_save_adapter()
-        adapter.set_magic_acquired(bool(state['magic_acquired']))
-        adapter.set_double_magic_acquired(bool(state['double_magic_acquired']))
-        adapter.set_magic_level(int(state['magic_level']))
-        adapter.set_magic_current(int(state['magic_current']))
-        adapter.set_magic_capacity_value(int(state['magic_capacity']))
-        adapter.set_magic_fill_target_value(int(state['magic_fill_target']))
-        adapter.set_magic_target_value(int(state['magic_target']))
-        adapter.set_magic_state_value(int(state['magic_state']))
-        adapter.set_prev_magic_state_value(int(state['prev_magic_state']))
-
-    def _restore_expired_magic_none_effects(self) -> None:
-        if not self._magic_none_effects:
-            return
-        if not self.controller.save_adapter:
-            return
-
-        now = time.monotonic()
-        self._magic_none_effects = [
-            effect for effect in self._magic_none_effects
-            if now < float(effect['expires_at'])
-        ]
-        if self._magic_none_effects:
-            return
-
-        restore_state = self._magic_none_restore_state
-        self._magic_none_restore_state = None
-        if restore_state is None:
-            return
-
-        self._restore_magic_state(restore_state)
-        self.controller._log('Temporary magic none expired: restored previous magic state')
-
-    def _clear_magic_none_pipeline(self) -> None:
-        self._magic_none_effects.clear()
-        self._magic_none_restore_state = None
-
     def _magic_capacity(self, value: str) -> str:
-        mapping = {'normal': 1, 'double': 2, 'none': 0, 'nevermore': 0}
-        value = resolve_close_text(value, mapping.keys())
+        mapping = {'normal': 1, 'double': 2, 'none': 0}
         if value not in mapping:
-            raise ValueError('Magic Capacity expects one of: normal, double, none, nevermore')
-
-        if value in ('normal', 'double'):
-            self._clear_magic_none_pipeline()
-            self.controller.set_magic_level(mapping[value])
-            return f'Twitch redeem applied: magic capacity {value}'
-
-        if value == 'nevermore':
-            self._clear_magic_none_pipeline()
-            self.controller.set_magic_level(0)
-            return 'Twitch redeem applied: magic capacity nevermore'
-
-        now = time.monotonic()
-        if self._magic_none_restore_state is None:
-            self._magic_none_restore_state = self._capture_magic_restore_state()
-
-        pipeline_start = now
-        if self._magic_none_effects:
-            pipeline_start = max(now, max(float(effect['expires_at']) for effect in self._magic_none_effects))
-        expires_at = pipeline_start + self._magic_none_duration_seconds
-        self._magic_none_effects.append({
-            'id': self._allocate_effect_id(),
-            'created_at': now,
-            'starts_at': pipeline_start,
-            'expires_at': expires_at,
-            'viewer': self._current_user_name,
-        })
-        self.controller.set_magic_level(0)
-        remaining_seconds = max(1, int(expires_at - now + 0.999))
-        return f'Twitch redeem applied: temporary magic capacity none queued for {remaining_seconds}s'
+            raise ValueError('Magic Capacity expects one of: normal, double, none')
+        self.controller.set_magic_level(mapping[value])
+        return f'Twitch redeem applied: magic capacity {value}'
 
     def _heart_fill(self, value: str) -> str:
         mapping = {'full': None, 'half': 0.5, 'quarter': 0.25, 'empty': 0.0}
@@ -440,11 +353,47 @@ class TwitchRewardExecutor:
         return 'Twitch redeem applied: removed 1 permanent max heart'
 
     def _item_toggle(self, value: str) -> str:
-        value = resolve_close_text(value, ITEM_TOGGLE_NAMES.keys())
-        slot = ITEM_TOGGLE_NAMES.get(value)
-        if slot is None:
+        aliases = {
+            'stick': 'deku_stick',
+            'sticks': 'deku_stick',
+            'deku stick': 'deku_stick',
+            'dekustick': 'deku_stick',
+            'nut': 'deku_nut',
+            'nuts': 'deku_nut',
+            'deku nut': 'deku_nut',
+            'dekunut': 'deku_nut',
+            'bean': 'magic_beans',
+            'beans': 'magic_beans',
+            'magic bean': 'magic_beans',
+            'magicbean': 'magic_beans',
+            'hammer': 'megaton_hammer',
+            'megatonhammer': 'megaton_hammer',
+            'lens': 'lens_of_truth',
+            'lens truth': 'lens_of_truth',
+            'lenstruth': 'lens_of_truth',
+            'firearrow': 'fire_arrow',
+            'icearrow': 'ice_arrow',
+            'lightarrow': 'light_arrow',
+            'dins fire': 'dins_fire',
+            'dinsfire': 'dins_fire',
+            'farores wind': 'farores_wind',
+            'faroreswind': 'farores_wind',
+            'nayrus love': 'nayrus_love',
+            'nayruslove': 'nayrus_love',
+            'hook shot': 'hookshot',
+            'hookshot': 'hookshot',
+            'long shot': 'hookshot',
+            'longshot': 'hookshot',
+            'bomb chu': 'bombchu',
+            'bombchu': 'bombchu',
+            'bombchus': 'bombchu',
+        }
+        matched_name = resolve_input(value, ITEM_TOGGLE_NAMES, aliases)
+        if matched_name is None:
             raise ValueError('Item Toggle expects a valid item name')
 
+        slot = ITEM_TOGGLE_NAMES[matched_name]
+        display_name = matched_name.replace('_', ' ')
         now = time.monotonic()
         active_effect = self._temporary_disabled_items.get(slot)
         if active_effect is not None:
@@ -452,67 +401,31 @@ class TwitchRewardExecutor:
             active_effect['created_at'] = now
             active_effect['viewer'] = self._current_user_name
             self.controller.clear_item(slot)
-            return f'Twitch redeem applied: refreshed temporary item removal {value} for 60s'
+            return f'Twitch redeem applied: refreshed temporary item removal {display_name} for 60s'
 
         current_inventory = self.controller.get_inventory()
         current_value = current_inventory.get(slot, ITEM_SLOTS[slot]['clear_value'])
         clear_value = ITEM_SLOTS[slot]['clear_value']
         if current_value == clear_value:
-            return f'Twitch redeem ignored: item {value} is not currently owned'
+            return f'Twitch redeem ignored: item {display_name} is not currently owned'
 
+        cleared_buttons = self._clear_buttons_using_item_value(int(current_value))
         self._temporary_disabled_items[slot] = {
             'restore_value': current_value,
             'expires_at': now + self._item_toggle_duration_seconds,
-            'item_name': value,
+            'item_name': display_name,
             'created_at': now,
             'viewer': self._current_user_name,
         }
         self.controller.clear_item(slot)
-        return f'Twitch redeem applied: temporarily removed item {value} for 60s'
-
-    def _resolve_ammo_name(self, value: str) -> str:
-        aliases = {
-            'stick': 'sticks',
-            'deku stick': 'sticks',
-            'deku sticks': 'sticks',
-            'dekustick': 'sticks',
-            'dekusticks': 'sticks',
-            'nut': 'nuts',
-            'deku nut': 'nuts',
-            'deku nuts': 'nuts',
-            'dekunut': 'nuts',
-            'dekunuts': 'nuts',
-            'bomb': 'bombs',
-            'arrow': 'arrows',
-            'seed': 'seeds',
-            'deku seed': 'seeds',
-            'deku seeds': 'seeds',
-            'dekuseed': 'seeds',
-            'dekuseeds': 'seeds',
-            'chu': 'bombchu',
-            'bombchu': 'bombchu',
-            'bombchus': 'bombchu',
-        }
-        normalized = normalize_user_text(value)
-        compact = normalized.replace(' ', '')
-
-        direct = aliases.get(normalized) or aliases.get(compact)
-        if direct is not None:
-            return direct
-
-        candidates = list(AMMO_NAME_TO_SLOT.keys()) + list(aliases.keys())
-        matched = resolve_close_text(normalized, candidates)
-        matched_normalized = normalize_user_text(matched)
-        matched_compact = matched_normalized.replace(' ', '')
-        return aliases.get(matched_normalized) or aliases.get(matched_compact) or matched
+        button_detail = f' and cleared {len(cleared_buttons)} button assignment(s)' if cleared_buttons else ''
+        return f'Twitch redeem applied: temporarily removed item {display_name} for 60s{button_detail}'
 
     def _ammo(self, value: str) -> str:
-        match = re.fullmatch(r'\s*(?P<ammo>.+?)\s*(?P<delta>[+-]\s*10)\s*', value)
-        if match is None:
+        parts = value.split()
+        if len(parts) != 2 or parts[1] not in ('+10', '-10'):
             raise ValueError('Ammo expects: <ammo> +10 or <ammo> -10')
-
-        ammo_name = self._resolve_ammo_name(match.group('ammo'))
-        delta_text = match.group('delta').replace(' ', '')
+        ammo_name, delta_text = parts
         slot = AMMO_NAME_TO_SLOT.get(ammo_name)
         if slot is None:
             raise ValueError('Ammo expects a valid ammo name')
@@ -520,8 +433,8 @@ class TwitchRewardExecutor:
         delta = 10 if delta_text == '+10' else -10
         self.controller.set_ammo(slot, max(0, current + delta))
         return f'Twitch redeem applied: ammo {ammo_name} {delta_text}'
+
     def _equipment_toggle(self, value: str) -> str:
-        value = resolve_close_text(value, EQUIPMENT_TOGGLE_NAMES.keys())
         target = EQUIPMENT_TOGGLE_NAMES.get(value)
         if target is None:
             raise ValueError('Equipment expects a valid equipment name')
@@ -544,7 +457,6 @@ class TwitchRewardExecutor:
         if len(parts) != 2 or parts[0] not in ('add', 'remove'):
             raise ValueError('Upgrade expects: add <upgrade> or remove <upgrade>')
         verb, upgrade_name = parts
-        upgrade_name = resolve_close_text(upgrade_name, UPGRADE_NAMES.keys())
         upgrade_key = UPGRADE_NAMES.get(upgrade_name)
         if upgrade_key is None:
             raise ValueError('Upgrade expects a valid upgrade name')
@@ -561,7 +473,6 @@ class TwitchRewardExecutor:
 
     def _sword_mode(self, value: str) -> str:
         mapping = {'swordless': 'none', 'kokiri': 'kokiri', 'ms': 'master', 'biggoron': 'biggoron'}
-        value = resolve_close_text(value, mapping.keys())
         mode = mapping.get(value)
         if mode is None:
             raise ValueError('Sword Mode expects one of: swordless, kokiri, ms, biggoron')
@@ -569,7 +480,6 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: sword mode {value}'
 
     def _teleport(self, value: str) -> str:
-        value = resolve_close_text(value, list(TELEPORT_REWARD_NAMES.keys()) + ['random'])
         now = time.monotonic()
         if now - self._last_teleport_at < 10.0:
             remaining = max(1, int(10 - (now - self._last_teleport_at)))
@@ -587,7 +497,6 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: teleport {label}'
 
     def _link_status(self, value: str) -> str:
-        value = resolve_close_text(value, ('burn', 'freeze', 'shock'))
         if value == 'burn':
             self.controller.execute_dll_bridge_command('burn')
         elif value == 'freeze':
@@ -599,7 +508,6 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: link status {value}'
 
     def _link_special_status(self, value: str) -> str:
-        value = resolve_close_text(value, ('invisible on', 'invisible off', 'reverse on', 'reverse off'))
         if value == 'invisible on':
             self.controller.execute_dll_bridge_command('invisible_on')
         elif value == 'invisible off':
@@ -613,10 +521,9 @@ class TwitchRewardExecutor:
         return f'Twitch redeem applied: link special status {value}'
 
     def _special_spawn(self, value: str) -> str:
-        value = resolve_close_text(value, ('bomb', 'bomb rain', 'explosion', 'cucco', 'darklink'))
         if value == 'bomb':
             self.controller.execute_dll_bridge_command('spawn_lit_bomb')
-        elif value == 'bomb rain':
+        elif value == 'bomb_rain':
             self.controller.execute_dll_bridge_command('bomb_rain')
         elif value == 'explosion':
             self.controller.execute_dll_bridge_command('spawn_explosion')
@@ -634,7 +541,6 @@ class TwitchRewardExecutor:
         if len(parts) != 2 or parts[0] not in ('add', 'remove'):
             raise ValueError('Quest Status expects: add <name> or remove <name>')
         verb, name = parts
-        name = resolve_close_text(name, QUEST_STATUS_NAMES.keys())
         flag_key = QUEST_STATUS_NAMES.get(name)
         if flag_key is None:
             raise ValueError('Quest Status expects a valid quest name')
