@@ -26,6 +26,9 @@ class TwitchRewardExecutor:
         self._heart_capacity_effects: list[dict[str, float | str]] = []
         self._heart_capacity_duration_seconds: float = 60.0
         self._item_toggle_duration_seconds: float = 60.0
+        self._magic_none_duration_seconds: float = 120.0
+        self._magic_none_effects: list[dict[str, float | str | int | bool]] = []
+        self._magic_none_restore_state: dict[str, int | bool] | None = None
         self._last_teleport_at: float = 0.0
         self._next_effect_id: int = 1
         self._current_user_name: str = ''
@@ -96,6 +99,7 @@ class TwitchRewardExecutor:
     def tick(self) -> None:
         self._restore_expired_items()
         self._restore_expired_heart_capacity_effects()
+        self._restore_expired_magic_none_effects()
         self._prune_overlay_events()
 
     def get_overlay_entries(self) -> list[dict[str, str | int]]:
@@ -123,6 +127,18 @@ class TwitchRewardExecutor:
                 'viewer': str(effect.get('viewer', '')),
                 'title': 'Item Toggle',
                 'detail': str(effect.get('item_name', '')),
+                'remaining_seconds': remaining_seconds,
+                'created_at': float(effect.get('created_at', 0.0)),
+            })
+
+        for effect in self._magic_none_effects:
+            remaining_seconds = max(0, int(float(effect['expires_at']) - now + 0.999))
+            if remaining_seconds <= 0:
+                continue
+            entries.append({
+                'viewer': str(effect.get('viewer', '')),
+                'title': 'Magic Capacity',
+                'detail': 'none',
                 'remaining_seconds': remaining_seconds,
                 'created_at': float(effect.get('created_at', 0.0)),
             })
@@ -163,7 +179,7 @@ class TwitchRewardExecutor:
         ]
 
     def _register_overlay_event(self, reward_title: str, action: str, user_input: str, user_name: str) -> None:
-        if action in {'heart_capacity', 'item_toggle'}:
+        if action in {'heart_capacity', 'item_toggle', 'magic_capacity'}:
             return
 
         normalized_input = normalize_user_text(user_input)
@@ -288,12 +304,92 @@ class TwitchRewardExecutor:
             raise ValueError('Magic Fill expects one of: full, half, empty')
         return f'Twitch redeem applied: magic fill {value}'
 
+    def _capture_magic_restore_state(self) -> dict[str, int | bool]:
+        adapter = self.controller._require_save_adapter()
+        return {
+            'magic_acquired': adapter.get_magic_acquired(),
+            'double_magic_acquired': adapter.get_double_magic_acquired(),
+            'magic_level': adapter.get_magic_level(),
+            'magic_current': adapter.get_magic_current(),
+            'magic_capacity': adapter.get_magic_capacity_value(),
+            'magic_fill_target': adapter.get_magic_fill_target_value(),
+            'magic_target': adapter.get_magic_target_value(),
+            'magic_state': adapter.get_magic_state_value(),
+            'prev_magic_state': adapter.get_prev_magic_state_value(),
+        }
+
+    def _restore_magic_state(self, state: dict[str, int | bool]) -> None:
+        adapter = self.controller._require_save_adapter()
+        adapter.set_magic_acquired(bool(state['magic_acquired']))
+        adapter.set_double_magic_acquired(bool(state['double_magic_acquired']))
+        adapter.set_magic_level(int(state['magic_level']))
+        adapter.set_magic_current(int(state['magic_current']))
+        adapter.set_magic_capacity_value(int(state['magic_capacity']))
+        adapter.set_magic_fill_target_value(int(state['magic_fill_target']))
+        adapter.set_magic_target_value(int(state['magic_target']))
+        adapter.set_magic_state_value(int(state['magic_state']))
+        adapter.set_prev_magic_state_value(int(state['prev_magic_state']))
+
+    def _restore_expired_magic_none_effects(self) -> None:
+        if not self._magic_none_effects:
+            return
+        if not self.controller.save_adapter:
+            return
+
+        now = time.monotonic()
+        self._magic_none_effects = [
+            effect for effect in self._magic_none_effects
+            if now < float(effect['expires_at'])
+        ]
+        if self._magic_none_effects:
+            return
+
+        restore_state = self._magic_none_restore_state
+        self._magic_none_restore_state = None
+        if restore_state is None:
+            return
+
+        self._restore_magic_state(restore_state)
+        self.controller._log('Temporary magic none expired: restored previous magic state')
+
+    def _clear_magic_none_pipeline(self) -> None:
+        self._magic_none_effects.clear()
+        self._magic_none_restore_state = None
+
     def _magic_capacity(self, value: str) -> str:
-        mapping = {'normal': 1, 'double': 2, 'none': 0}
+        mapping = {'normal': 1, 'double': 2, 'none': 0, 'nevermore': 0}
+        value = resolve_close_text(value, mapping.keys())
         if value not in mapping:
-            raise ValueError('Magic Capacity expects one of: normal, double, none')
-        self.controller.set_magic_level(mapping[value])
-        return f'Twitch redeem applied: magic capacity {value}'
+            raise ValueError('Magic Capacity expects one of: normal, double, none, nevermore')
+
+        if value in ('normal', 'double'):
+            self._clear_magic_none_pipeline()
+            self.controller.set_magic_level(mapping[value])
+            return f'Twitch redeem applied: magic capacity {value}'
+
+        if value == 'nevermore':
+            self._clear_magic_none_pipeline()
+            self.controller.set_magic_level(0)
+            return 'Twitch redeem applied: magic capacity nevermore'
+
+        now = time.monotonic()
+        if self._magic_none_restore_state is None:
+            self._magic_none_restore_state = self._capture_magic_restore_state()
+
+        pipeline_start = now
+        if self._magic_none_effects:
+            pipeline_start = max(now, max(float(effect['expires_at']) for effect in self._magic_none_effects))
+        expires_at = pipeline_start + self._magic_none_duration_seconds
+        self._magic_none_effects.append({
+            'id': self._allocate_effect_id(),
+            'created_at': now,
+            'starts_at': pipeline_start,
+            'expires_at': expires_at,
+            'viewer': self._current_user_name,
+        })
+        self.controller.set_magic_level(0)
+        remaining_seconds = max(1, int(expires_at - now + 0.999))
+        return f'Twitch redeem applied: temporary magic capacity none queued for {remaining_seconds}s'
 
     def _heart_fill(self, value: str) -> str:
         mapping = {'full': None, 'half': 0.5, 'quarter': 0.25, 'empty': 0.0}

@@ -94,7 +94,7 @@ REWARD_UI_HELP = {
     "Unequip all slots": "No input required.",
     "Rupees -50": "No input required.",
     "Magic Fill": "Allowed: full, half, empty",
-    "Magic Capacity": "Allowed: normal, double, none",
+    "Magic Capacity": "Allowed: normal, double, none, nevermore | none = temporary 2min queued, nevermore = permanent no magic",
     "Heart Fill": "Allowed: full, half, quarter, empty",
     "Heart Capacity": "Allowed: +1, -1",
     "Heart Remove Permanent": "No input required.",
