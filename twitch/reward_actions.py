@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from typing import TYPE_CHECKING
 
@@ -76,7 +77,8 @@ class TwitchRewardExecutor:
             raise ValueError(f'Unsupported Twitch action: {action}')
 
         try:
-            message = handler(normalized)
+            handler_input = user_input if action == 'ammo' else normalized
+            message = handler(handler_input)
             self._register_overlay_event(
                 reward_title=reward_title,
                 action=action,
@@ -372,12 +374,49 @@ class TwitchRewardExecutor:
         self.controller.clear_item(slot)
         return f'Twitch redeem applied: temporarily removed item {value} for 60s'
 
+    def _resolve_ammo_name(self, value: str) -> str:
+        aliases = {
+            'stick': 'sticks',
+            'deku stick': 'sticks',
+            'deku sticks': 'sticks',
+            'dekustick': 'sticks',
+            'dekusticks': 'sticks',
+            'nut': 'nuts',
+            'deku nut': 'nuts',
+            'deku nuts': 'nuts',
+            'dekunut': 'nuts',
+            'dekunuts': 'nuts',
+            'bomb': 'bombs',
+            'arrow': 'arrows',
+            'seed': 'seeds',
+            'deku seed': 'seeds',
+            'deku seeds': 'seeds',
+            'dekuseed': 'seeds',
+            'dekuseeds': 'seeds',
+            'chu': 'bombchu',
+            'bombchu': 'bombchu',
+            'bombchus': 'bombchu',
+        }
+        normalized = normalize_user_text(value)
+        compact = normalized.replace(' ', '')
+
+        direct = aliases.get(normalized) or aliases.get(compact)
+        if direct is not None:
+            return direct
+
+        candidates = list(AMMO_NAME_TO_SLOT.keys()) + list(aliases.keys())
+        matched = resolve_close_text(normalized, candidates)
+        matched_normalized = normalize_user_text(matched)
+        matched_compact = matched_normalized.replace(' ', '')
+        return aliases.get(matched_normalized) or aliases.get(matched_compact) or matched
+
     def _ammo(self, value: str) -> str:
-        parts = value.split()
-        if len(parts) != 2 or parts[1] not in ('+10', '-10'):
+        match = re.fullmatch(r'\s*(?P<ammo>.+?)\s*(?P<delta>[+-]\s*10)\s*', value)
+        if match is None:
             raise ValueError('Ammo expects: <ammo> +10 or <ammo> -10')
-        ammo_name, delta_text = parts
-        ammo_name = resolve_close_text(ammo_name, AMMO_NAME_TO_SLOT.keys())
+
+        ammo_name = self._resolve_ammo_name(match.group('ammo'))
+        delta_text = match.group('delta').replace(' ', '')
         slot = AMMO_NAME_TO_SLOT.get(ammo_name)
         if slot is None:
             raise ValueError('Ammo expects a valid ammo name')
@@ -385,7 +424,6 @@ class TwitchRewardExecutor:
         delta = 10 if delta_text == '+10' else -10
         self.controller.set_ammo(slot, max(0, current + delta))
         return f'Twitch redeem applied: ammo {ammo_name} {delta_text}'
-
     def _equipment_toggle(self, value: str) -> str:
         value = resolve_close_text(value, EQUIPMENT_TOGGLE_NAMES.keys())
         target = EQUIPMENT_TOGGLE_NAMES.get(value)
