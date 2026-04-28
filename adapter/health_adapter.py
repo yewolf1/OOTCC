@@ -17,6 +17,10 @@ class HealthAdapter:
         self.memory = WindowsProcessMemory(fingerprint.pid)
         self.dynamic_resolver = DynamicOffsetResolver(self.memory, profile)
 
+    def force_refresh_runtime_offsets(self) -> None:
+        """Force one PDB/cache refresh for the current runtime address map."""
+        self.dynamic_resolver.force_refresh()
+
     def close(self) -> None:
         """Release the Windows process handle."""
         self.memory.close()
@@ -33,7 +37,7 @@ class HealthAdapter:
         if strategy == "direct_address":
             return int(config[f"{key_name}_address"], 16)
 
-        if strategy == "module_offset":
+        if strategy in ("module_offset", "dynamic_runtime"):
             module_name = config["module"]
             offset = int(config[f"{key_name}_offset"], 16)
             base = self.memory.get_module_base(module_name)
@@ -61,7 +65,7 @@ class HealthAdapter:
 
         health_cfg = self.profile.get("health", {})
         strategy = health_cfg.get("strategy")
-        if strategy not in ("direct_address", "module_offset"):
+        if strategy not in ("direct_address", "module_offset", "dynamic_runtime"):
             return HealthState(
                 attached=True,
                 supported=False,
@@ -95,7 +99,7 @@ class HealthAdapter:
         if not rupees_cfg:
             raise RuntimeError("No rupees config found in profile")
 
-        if rupees_cfg.get("strategy") in ("module_offset", "direct_address"):
+        if rupees_cfg.get("strategy") in ("module_offset", "direct_address", "dynamic_runtime"):
             address = self.dynamic_resolver.resolve_global_address("rupees")
         else:
             raise RuntimeError("Profile rupees strategy is not supported")
@@ -113,7 +117,7 @@ class HealthAdapter:
 
         clamped = max(0, min(int(value), 9999))
 
-        if rupees_cfg.get("strategy") in ("module_offset", "direct_address"):
+        if rupees_cfg.get("strategy") in ("module_offset", "direct_address", "dynamic_runtime"):
             address = self.dynamic_resolver.resolve_global_address("rupees")
         else:
             raise RuntimeError("Profile rupees strategy is not supported")
@@ -128,7 +132,7 @@ class HealthAdapter:
 
         health_cfg = self.profile.get("health", {})
         strategy = health_cfg.get("strategy")
-        if strategy not in ("direct_address", "module_offset"):
+        if strategy not in ("direct_address", "module_offset", "dynamic_runtime"):
             raise RuntimeError("Profile strategy is not write-capable yet")
 
         current_address = self._resolve_i16_address(health_cfg, "current")
@@ -141,7 +145,7 @@ class HealthAdapter:
 
         health_cfg = self.profile.get("health", {})
         strategy = health_cfg.get("strategy")
-        if strategy not in ("direct_address", "module_offset"):
+        if strategy not in ("direct_address", "module_offset", "dynamic_runtime"):
             raise RuntimeError("Profile strategy is not write-capable yet")
 
         max_address = self._resolve_i16_address(health_cfg, "max")

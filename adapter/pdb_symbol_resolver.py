@@ -1,197 +1,127 @@
 from __future__ import annotations
 
 import ctypes
-from ctypes import wintypes
 from pathlib import Path
 
-
-dbghelp = ctypes.WinDLL("dbghelp", use_last_error=True)
-kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+from adapter.windows_memory import WindowsProcessMemory
 
 MAX_SYM_NAME = 1024
 SYMOPT_UNDNAME = 0x00000002
 SYMOPT_DEFERRED_LOADS = 0x00000004
 SYMOPT_LOAD_LINES = 0x00000010
-SYMOPT_FAIL_CRITICAL_ERRORS = 0x00000200
-SYMOPT_EXACT_SYMBOLS = 0x00000400
 
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+dbghelp = ctypes.WinDLL("dbghelp", use_last_error=True)
 
-class SYMBOL_INFO(ctypes.Structure):
-    _fields_ = [
-        ("SizeOfStruct", wintypes.ULONG),
-        ("TypeIndex", wintypes.ULONG),
-        ("Reserved", ctypes.c_ulonglong * 2),
-        ("Index", wintypes.ULONG),
-        ("Size", wintypes.ULONG),
-        ("ModBase", ctypes.c_ulonglong),
-        ("Flags", wintypes.ULONG),
-        ("Value", ctypes.c_ulonglong),
-        ("Address", ctypes.c_ulonglong),
-        ("Register", wintypes.ULONG),
-        ("Scope", wintypes.ULONG),
-        ("Tag", wintypes.ULONG),
-        ("NameLen", wintypes.ULONG),
-        ("MaxNameLen", wintypes.ULONG),
-        ("Name", ctypes.c_char * MAX_SYM_NAME),
-    ]
-
-
-GetCurrentProcess = kernel32.GetCurrentProcess
-GetCurrentProcess.argtypes = []
-GetCurrentProcess.restype = wintypes.HANDLE
-
-SymSetOptions = dbghelp.SymSetOptions
-SymSetOptions.argtypes = [wintypes.DWORD]
-SymSetOptions.restype = wintypes.DWORD
-
-SymInitialize = dbghelp.SymInitialize
-SymInitialize.argtypes = [wintypes.HANDLE, ctypes.c_char_p, wintypes.BOOL]
-SymInitialize.restype = wintypes.BOOL
+SymInitializeW = dbghelp.SymInitializeW
+SymInitializeW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_bool]
+SymInitializeW.restype = ctypes.c_bool
 
 SymCleanup = dbghelp.SymCleanup
-SymCleanup.argtypes = [wintypes.HANDLE]
-SymCleanup.restype = wintypes.BOOL
+SymCleanup.argtypes = [ctypes.c_void_p]
+SymCleanup.restype = ctypes.c_bool
+
+SymSetOptions = dbghelp.SymSetOptions
+SymSetOptions.argtypes = [ctypes.c_uint32]
+SymSetOptions.restype = ctypes.c_uint32
 
 SymLoadModuleExW = dbghelp.SymLoadModuleExW
 SymLoadModuleExW.argtypes = [
-    wintypes.HANDLE,
-    wintypes.HANDLE,
-    wintypes.LPCWSTR,
-    wintypes.LPCWSTR,
-    ctypes.c_ulonglong,
-    wintypes.DWORD,
     ctypes.c_void_p,
-    wintypes.DWORD,
+    ctypes.c_void_p,
+    ctypes.c_wchar_p,
+    ctypes.c_wchar_p,
+    ctypes.c_uint64,
+    ctypes.c_uint32,
+    ctypes.c_void_p,
+    ctypes.c_uint32,
 ]
-SymLoadModuleExW.restype = ctypes.c_ulonglong
+SymLoadModuleExW.restype = ctypes.c_uint64
 
-SymFromName = dbghelp.SymFromName
-SymFromName.argtypes = [wintypes.HANDLE, ctypes.c_char_p, ctypes.POINTER(SYMBOL_INFO)]
-SymFromName.restype = wintypes.BOOL
+SymFromNameW = dbghelp.SymFromNameW
+SymFromNameW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_void_p]
+SymFromNameW.restype = ctypes.c_bool
 
-SymEnumSymbols = dbghelp.SymEnumSymbols
-SymEnumSymbols.restype = wintypes.BOOL
 
-PSYM_ENUMERATESYMBOLS_CALLBACK = ctypes.WINFUNCTYPE(
-    wintypes.BOOL,
-    ctypes.POINTER(SYMBOL_INFO),
-    wintypes.ULONG,
-    ctypes.c_void_p,
-)
-SymEnumSymbols.argtypes = [
-    wintypes.HANDLE,
-    ctypes.c_ulonglong,
-    ctypes.c_char_p,
-    PSYM_ENUMERATESYMBOLS_CALLBACK,
-    ctypes.c_void_p,
-]
+class SYMBOL_INFOW(ctypes.Structure):
+    _fields_ = [
+        ("SizeOfStruct", ctypes.c_uint32),
+        ("TypeIndex", ctypes.c_uint32),
+        ("Reserved", ctypes.c_uint64 * 2),
+        ("Index", ctypes.c_uint32),
+        ("Size", ctypes.c_uint32),
+        ("ModBase", ctypes.c_uint64),
+        ("Flags", ctypes.c_uint32),
+        ("Value", ctypes.c_uint64),
+        ("Address", ctypes.c_uint64),
+        ("Register", ctypes.c_uint32),
+        ("Scope", ctypes.c_uint32),
+        ("Tag", ctypes.c_uint32),
+        ("NameLen", ctypes.c_uint32),
+        ("MaxNameLen", ctypes.c_uint32),
+        ("Name", ctypes.c_wchar * MAX_SYM_NAME),
+    ]
 
 
 class PdbSymbolResolver:
-    """Resolve SoH global addresses from the PDB matching the loaded soh.exe module."""
+    def __init__(self, memory: WindowsProcessMemory, exe_path: str) -> None:
+        self.memory = memory
+        self.exe_path = str(Path(exe_path))
+        self._initialized = False
+        self._module_loaded = False
+        self._initialize()
 
-    def __init__(self, image_path: str, module_base: int, module_size: int) -> None:
-        self.image_path = str(image_path)
-        self.module_base = int(module_base)
-        self.module_size = int(module_size)
-        self._handle = GetCurrentProcess()
-        self._loaded = False
+    def close(self) -> None:
+        if self._initialized:
+            SymCleanup(self.memory.handle)
+            self._initialized = False
 
     def __enter__(self) -> "PdbSymbolResolver":
-        self.load()
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
-        self.cleanup()
+        self.close()
 
-    def load(self) -> None:
-        image = Path(self.image_path)
-        search_dirs = [str(image.parent), str(image.parent / "debug")]
-        search_path = ";".join(search_dirs).encode("mbcs", errors="ignore")
-        SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES | SYMOPT_FAIL_CRITICAL_ERRORS | SYMOPT_EXACT_SYMBOLS)
-        if not SymInitialize(self._handle, search_path, False):
-            raise OSError(ctypes.get_last_error(), "SymInitialize failed")
+    def _initialize(self) -> None:
+        exe = Path(self.exe_path)
+        search_parts = [str(exe.parent)]
+        debug_dir = exe.parent / "debug"
+        if debug_dir.exists():
+            search_parts.append(str(debug_dir))
+        search_path = ";".join(search_parts)
+
+        SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES)
+        if not SymInitializeW(self.memory.handle, search_path, False):
+            raise OSError(ctypes.get_last_error(), "SymInitializeW failed")
+        self._initialized = True
+
+        module_base, module_size = self.memory.get_module_info(exe.name)
         loaded_base = SymLoadModuleExW(
-            self._handle,
+            self.memory.handle,
             None,
-            self.image_path,
-            None,
-            self.module_base,
-            self.module_size,
+            str(exe),
+            exe.name,
+            ctypes.c_uint64(module_base).value,
+            ctypes.c_uint32(module_size).value,
             None,
             0,
         )
-        if not loaded_base:
-            error = ctypes.get_last_error()
-            SymCleanup(self._handle)
-            raise OSError(error, "SymLoadModuleExW failed")
-        self._loaded = True
+        if loaded_base == 0:
+            raise OSError(ctypes.get_last_error(), "SymLoadModuleExW failed")
+        self._module_loaded = True
 
-    def cleanup(self) -> None:
-        if self._loaded:
-            SymCleanup(self._handle)
-            self._loaded = False
-
-    def address_of_any(self, names: list[str]) -> int | None:
+    def find_first(self, names: list[str]) -> int | None:
         for name in names:
-            address = self.address_of(name)
+            address = self.find_exact(name)
             if address is not None:
                 return address
         return None
 
-    def address_of(self, name: str) -> int | None:
-        info = SYMBOL_INFO()
-        info.SizeOfStruct = ctypes.sizeof(SYMBOL_INFO) - MAX_SYM_NAME + 1
-        info.MaxNameLen = MAX_SYM_NAME - 1
-        ok = SymFromName(self._handle, name.encode("ascii"), ctypes.byref(info))
-        if ok:
-            return int(info.Address)
-        return None
-
-    def _read_symbol_name(self, symbol_info: ctypes.POINTER(SYMBOL_INFO)) -> str:
-        name_len = int(symbol_info.contents.NameLen)
-        if name_len <= 0:
-            return ""
-        max_len = min(name_len, MAX_SYM_NAME - 1)
-        name_address = ctypes.addressof(symbol_info.contents) + SYMBOL_INFO.Name.offset
-        raw_name = ctypes.string_at(name_address, max_len)
-        return raw_name.decode("utf-8", errors="ignore")
-
-    def matching_addresses(self, masks: list[str], contains: list[str]) -> list[tuple[str, int]]:
-        contains_lower = [value.lower() for value in contains]
-        matches: list[tuple[str, int]] = []
-
-        def callback(symbol_info, symbol_size, context):
-            name = self._read_symbol_name(symbol_info)
-            lowered = name.lower()
-            address = int(symbol_info.contents.Address)
-            if address and all(value in lowered for value in contains_lower):
-                matches.append((name, address))
-            return True
-
-        cb = PSYM_ENUMERATESYMBOLS_CALLBACK(callback)
-        for mask in masks:
-            SymEnumSymbols(self._handle, self.module_base, mask.encode("ascii"), cb, None)
-        unique: dict[int, str] = {}
-        for name, address in matches:
-            unique.setdefault(address, name)
-        return sorted(((name, address) for address, name in unique.items()), key=lambda item: (len(item[0]), item[0]))
-
-    def find_first_matching(self, masks: list[str], contains: list[str]) -> int | None:
-        contains_lower = [value.lower() for value in contains]
-        matches: list[tuple[str, int]] = []
-
-        def callback(symbol_info, symbol_size, context):
-            name = self._read_symbol_name(symbol_info)
-            lowered = name.lower()
-            if all(value in lowered for value in contains_lower):
-                matches.append((name, int(symbol_info.contents.Address)))
-            return True
-
-        cb = PSYM_ENUMERATESYMBOLS_CALLBACK(callback)
-        for mask in masks:
-            SymEnumSymbols(self._handle, self.module_base, mask.encode("ascii"), cb, None)
-            if matches:
-                matches.sort(key=lambda item: (len(item[0]), item[0]))
-                return matches[0][1]
-        return None
+    def find_exact(self, name: str) -> int | None:
+        symbol = SYMBOL_INFOW()
+        symbol.SizeOfStruct = ctypes.sizeof(SYMBOL_INFOW) - ctypes.sizeof(ctypes.c_wchar) * MAX_SYM_NAME
+        symbol.MaxNameLen = MAX_SYM_NAME
+        ok = SymFromNameW(self.memory.handle, name, ctypes.byref(symbol))
+        if not ok:
+            return None
+        return int(symbol.Address)

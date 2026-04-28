@@ -213,22 +213,6 @@ class WindowsProcessMemory:
                 break
             address = next_address
 
-    def get_module_details(self, module_name: str) -> tuple[int, int, str]:
-        snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self.pid)
-        if snapshot == INVALID_HANDLE_VALUE:
-            raise OSError(ctypes.get_last_error(), "CreateToolhelp32Snapshot failed")
-        try:
-            entry = MODULEENTRY32W()
-            entry.dwSize = ctypes.sizeof(MODULEENTRY32W)
-            ok = Module32FirstW(snapshot, ctypes.byref(entry))
-            while ok:
-                if entry.szModule.lower() == module_name.lower():
-                    return ctypes.addressof(entry.modBaseAddr.contents), int(entry.modBaseSize), str(entry.szExePath)
-                ok = Module32NextW(snapshot, ctypes.byref(entry))
-        finally:
-            CloseHandle(snapshot)
-        raise RuntimeError(f"Module not found in target process: {module_name}")
-
     def get_module_info(self, module_name: str) -> tuple[int, int]:
         snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self.pid)
         if snapshot == INVALID_HANDLE_VALUE:

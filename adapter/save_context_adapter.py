@@ -130,6 +130,9 @@ class SaveContextAdapter:
         self.dynamic_resolver = DynamicOffsetResolver(self.memory, profile)
         self._manual_player_address: int | None = None
 
+    def force_refresh_runtime_offsets(self) -> None:
+        self.dynamic_resolver.force_refresh()
+
     def close(self) -> None:
         self.memory.close()
 

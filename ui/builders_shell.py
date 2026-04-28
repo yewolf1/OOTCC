@@ -29,7 +29,7 @@ class MainWindowShellBuilderMixin:
         actions = ctk.CTkFrame(header, fg_color="transparent")
         actions.grid(row=0, column=2, padx=18, pady=18, sticky="e")
 
-        ctk.CTkButton(actions, text="Refresh", width=140, command=self.refresh_state).grid(
+        ctk.CTkButton(actions, text="Refresh", width=140, command=self.force_refresh_state).grid(
             row=0, column=0, padx=(0, 10)
         )
         ctk.CTkButton(actions, text="Full heal", width=140, command=self.full_heal).grid(

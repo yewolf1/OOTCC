@@ -1,5 +1,77 @@
 {
-  "profiles": [
+  "schema_version": 2,
+  "runtime_resolution": {
+    "enabled": true,
+    "strategy": "pdb_symbols_with_persistent_cache",
+    "module": "soh.exe",
+    "process_names": [
+      "soh.exe"
+    ],
+    "version_label": "SoH dynamic runtime",
+    "cache_section": "runtime_cache",
+    "symbols": {
+      "save_context": [
+        "gSaveContext"
+      ],
+      "gplaystate_pointer": [
+        "gPlayState"
+      ]
+    },
+    "notes": "PDB symbols are used only when no valid runtime_cache entry exists, or when Refresh forces a rescan."
+  },
+  "structure_offsets": {
+    "save_context": {
+      "health_max": "0x002E",
+      "health_current": "0x0030",
+      "magic_level": "0x0032",
+      "magic_current": "0x0033",
+      "rupees": "0x0034",
+      "items": "0x008C",
+      "ammo": "0x00A4",
+      "equipped_equipment": "0x0088",
+      "owned_equipment": "0x00B4",
+      "upgrades": "0x00B8",
+      "quest_items": "0x00BC",
+      "entrance_index": "0x0000",
+      "respawn_flag": "0x1364",
+      "respawn_down": "0x1368",
+      "next_transition_type": "0x141D",
+      "magic_state": "0x13F0",
+      "prev_magic_state": "0x13F2",
+      "magic_capacity": "0x13F4",
+      "magic_fill_target": "0x13F6",
+      "magic_target": "0x13F8"
+    },
+    "play_state": {
+      "transition_trigger": "0x21061",
+      "next_entrance": "0x21066",
+      "transition_type": "0x210AA"
+    },
+    "link_state": {
+      "player_offset": "0x400",
+      "freeze_timer": "0x0110",
+      "shock_timer": "0x0891",
+      "burn_flag": "0x0A60",
+      "burn_flames": "0x0A61"
+    }
+  },
+  "runtime_cache": {
+    "2092c24da65b53a7": {
+      "save_base_rva": 39365440,
+      "items_base_rva": 39365580,
+      "ammo_base_rva": 39365604,
+      "current_health_rva": 39365488,
+      "max_health_rva": 39365486,
+      "rupees_rva": 39365492,
+      "equipped_equipment_rva": 39365576,
+      "owned_equipment_rva": 39365620,
+      "upgrades_rva": 39365624,
+      "quest_items_rva": 39365628,
+      "resolved_by": "pdb",
+      "gplaystate_pointer_rva": 39346736
+    }
+  },
+  "legacy_profiles": [
     {
       "name": "SoH Build Local",
       "build_hash": "cd584df1e3a57bb0",
@@ -46,15 +118,11 @@
       "allow_dynamic_offsets": true,
       "dynamic_offsets": {
         "enabled": true,
-        "strategy": "pdb_symbols",
-        "required_symbols": [
-          "gSaveContext",
-          "gPlayState"
-        ],
-        "memory_scan_fallback": false
+        "strategy": "scan_save_context_cluster",
+        "scan_window": "0x800000",
+        "gplaystate_scan_window": "0x800000"
       },
-      "dynamic_hash_note": "Exact build_hash is used first. If SoH is updated and only the executable hash changes, this profile can be reused dynamically for soh.exe.",
-      "dynamic_offsets_note": "Exact profile offsets are used first when valid. Unknown SoH hashes resolve gSaveContext and gPlayState from the matching soh.pdb next to soh.exe. No blind RAM scan is used."
+      "dynamic_hash_note": "Exact build_hash is used first. If SoH is updated and only the executable hash changes, this profile can be reused dynamically for soh.exe."
     }
   ]
 }

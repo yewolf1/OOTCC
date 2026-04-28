@@ -7,6 +7,9 @@ class MainWindowCommandMixin:
     def refresh_state(self) -> None:
         self.presenter.refresh_state()
 
+    def force_refresh_state(self) -> None:
+        self.presenter.refresh_state(force_runtime_scan=True)
+
     def apply_current_health(self) -> None:
         self.presenter.apply_current_health(self.health_slider_var.get())
 

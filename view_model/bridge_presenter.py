@@ -38,9 +38,9 @@ class BridgePresenter:
     def initialize(self) -> None:
         self.refresh_state()
 
-    def refresh_state(self) -> None:
+    def refresh_state(self, force_runtime_scan: bool = False) -> None:
         self.controller.process_twitch_timers()
-        self.view.render(self._build_app_view_model())
+        self.view.render(self._build_app_view_model(force_runtime_scan=force_runtime_scan))
 
     def apply_current_health(self, hearts: float) -> None:
         self._run(lambda: self.controller.set_health_hearts(hearts), "Bridge error")
@@ -213,8 +213,8 @@ class BridgePresenter:
         finally:
             self.refresh_state()
 
-    def _build_app_view_model(self) -> AppViewModel:
-        health_state = self.controller.refresh()
+    def _build_app_view_model(self, force_runtime_scan: bool = False) -> AppViewModel:
+        health_state = self.controller.refresh(force_runtime_scan=force_runtime_scan)
 
         return AppViewModel(
             status=self._build_status_view_model(health_state),

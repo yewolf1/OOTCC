@@ -60,7 +60,7 @@ class AppController(
     def process_twitch_timers(self) -> None:
         self.twitch_rewards.tick()
 
-    def refresh(self) -> HealthState:
+    def refresh(self, force_runtime_scan: bool = False) -> HealthState:
         fingerprint = self.scanner.find_soh()
         if not fingerprint:
             self._dispose_adapter()
@@ -90,6 +90,9 @@ class AppController(
                     f"Attached to {fingerprint.process_name}, unsupported build hash {fingerprint.sha256_prefix}."
                 )
 
+        if force_runtime_scan and self.adapter is not None:
+            self.force_refresh_runtime_offsets()
+
         try:
             return self.adapter.get_state()
         except Exception as exc:
@@ -100,6 +103,15 @@ class AppController(
                 process_name=fingerprint.process_name,
                 message=str(exc),
             )
+
+    def force_refresh_runtime_offsets(self) -> None:
+        if not self.profile:
+            return
+        if self.adapter is not None:
+            self.adapter.force_refresh_runtime_offsets()
+        if self.save_adapter is not None:
+            self.save_adapter.force_refresh_runtime_offsets()
+        self.logger.add("Runtime offsets refreshed from PDB/cache/profile validation")
 
     def set_health_hearts(self, hearts: float) -> None:
         if not self.adapter:

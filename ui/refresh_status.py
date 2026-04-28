@@ -5,7 +5,13 @@ from __future__ import annotations
 
 class MainWindowStatusRefreshMixin:
     def refresh_state(self) -> None:
-        self.health_state = self.controller.refresh()
+        self._refresh_state_with_runtime_scan(False)
+
+    def force_refresh_state(self) -> None:
+        self._refresh_state_with_runtime_scan(True)
+
+    def _refresh_state_with_runtime_scan(self, force_runtime_scan: bool) -> None:
+        self.health_state = self.controller.refresh(force_runtime_scan=force_runtime_scan)
         self.status_var.set("Attached" if self.health_state.attached else "Offline")
         self.build_var.set(self.health_state.version_label)
         self.hearts_var.set(f"{self.health_state.current_hearts:.2f} / {self.health_state.max_hearts:.2f} hearts")
