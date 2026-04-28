@@ -79,9 +79,11 @@ class AppController(
                 self.save_adapter = None
 
             if self.profile:
+                dynamic_note = " via dynamic hash fallback" if self.profile.get("dynamic_profile_match") else ""
                 self.logger.add(
                     f"Attached to {fingerprint.process_name} "
-                    f"(profile: {self.profile.get('version_label', 'unknown')})"
+                    f"(profile: {self.profile.get('version_label', 'unknown')}, "
+                    f"build: {self.profile.get('build_hash', fingerprint.sha256_prefix)}{dynamic_note})"
                 )
             else:
                 self.logger.add(

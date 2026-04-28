@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from adapter.windows_memory import WindowsProcessMemory
+from adapter.dynamic_offset_resolver import DynamicOffsetResolver
 from core.models import BuildFingerprint, HealthState
 
 
@@ -14,14 +15,20 @@ class HealthAdapter:
         self.fingerprint = fingerprint
         self.profile = profile
         self.memory = WindowsProcessMemory(fingerprint.pid)
+        self.dynamic_resolver = DynamicOffsetResolver(self.memory, profile)
 
     def close(self) -> None:
         """Release the Windows process handle."""
         self.memory.close()
 
     def _resolve_address(self, config: dict, key_name: str) -> int:
-        """Resolve either an absolute address or a module-relative offset from the profile."""
+        """Resolve an address from the profile, with dynamic fallback for moved SoH globals."""
         strategy = config.get("strategy")
+
+        if key_name == "current":
+            return self.dynamic_resolver.resolve_global_address("current_health")
+        if key_name == "max":
+            return self.dynamic_resolver.resolve_global_address("max_health")
 
         if strategy == "direct_address":
             return int(config[f"{key_name}_address"], 16)
@@ -88,10 +95,8 @@ class HealthAdapter:
         if not rupees_cfg:
             raise RuntimeError("No rupees config found in profile")
 
-        if rupees_cfg.get("strategy") == "module_offset":
-            address = self.memory.get_module_base(rupees_cfg["module"]) + int(rupees_cfg["offset"], 16)
-        elif rupees_cfg.get("strategy") == "direct_address":
-            address = int(rupees_cfg["address"], 16)
+        if rupees_cfg.get("strategy") in ("module_offset", "direct_address"):
+            address = self.dynamic_resolver.resolve_global_address("rupees")
         else:
             raise RuntimeError("Profile rupees strategy is not supported")
 
@@ -108,10 +113,8 @@ class HealthAdapter:
 
         clamped = max(0, min(int(value), 9999))
 
-        if rupees_cfg.get("strategy") == "module_offset":
-            address = self.memory.get_module_base(rupees_cfg["module"]) + int(rupees_cfg["offset"], 16)
-        elif rupees_cfg.get("strategy") == "direct_address":
-            address = int(rupees_cfg["address"], 16)
+        if rupees_cfg.get("strategy") in ("module_offset", "direct_address"):
+            address = self.dynamic_resolver.resolve_global_address("rupees")
         else:
             raise RuntimeError("Profile rupees strategy is not supported")
 

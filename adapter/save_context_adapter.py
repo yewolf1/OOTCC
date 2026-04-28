@@ -4,6 +4,7 @@ import ctypes
 import struct
 
 from adapter.windows_memory import WindowsProcessMemory
+from adapter.dynamic_offset_resolver import DynamicOffsetResolver
 
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -126,6 +127,7 @@ class SaveContextAdapter:
     def __init__(self, fingerprint, profile: dict) -> None:
         self.memory = WindowsProcessMemory(fingerprint.pid)
         self.profile = profile
+        self.dynamic_resolver = DynamicOffsetResolver(self.memory, profile)
         self._manual_player_address: int | None = None
 
     def close(self) -> None:
@@ -169,13 +171,13 @@ class SaveContextAdapter:
         return self._module_base(cfg["module"]) + int(cfg[offset_key], 16)
 
     def _save_base(self) -> int:
-        return self._base_from_cfg(self._save_cfg())
+        return self.dynamic_resolver.runtime_map().save_base
 
     def _items_base(self) -> int:
-        return self._base_from_cfg(self._items_cfg())
+        return self.dynamic_resolver.runtime_map().items_base
 
     def _ammo_base(self) -> int:
-        return self._base_from_cfg(self._ammo_cfg())
+        return self.dynamic_resolver.runtime_map().ammo_base
 
     def _save_addr(self, key: str) -> int:
         cfg = self._save_cfg()
@@ -188,11 +190,16 @@ class SaveContextAdapter:
         return self._ammo_base() + slot
 
     def _runtime_addr(self, name: str) -> int:
+        mapping = {
+            "equipped_equipment": "equipped_equipment",
+            "owned_equipment": "owned_equipment",
+            "upgrades": "upgrades",
+            "quest_items": "quest_items",
+        }
         try:
-            offset = self._RUNTIME_OFFSETS[name]
+            return self.dynamic_resolver.resolve_global_address(mapping[name])
         except KeyError as exc:
             raise RuntimeError(f"Unknown runtime address key: {name}") from exc
-        return self._module_base("soh.exe") + offset
 
     def _parse_optional_hex(self, value: str | int | None) -> int | None:
         if value is None:
@@ -353,7 +360,8 @@ class SaveContextAdapter:
         return struct.unpack("<Q", self._read_bytes(addr, 8))[0]
 
     def get_gplaystate_pointer_address(self) -> int:
-        return self._module_base("soh.exe") + self._GPLAYSTATE_PTR_RVA
+        fallback = self._module_base("soh.exe") + self._GPLAYSTATE_PTR_RVA
+        return self.dynamic_resolver.resolve_gplaystate_pointer_address(fallback)
 
     def get_gplaystate_address(self) -> int:
         return self._read_u64(self.get_gplaystate_pointer_address())

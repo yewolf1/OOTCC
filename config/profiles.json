@@ -38,7 +38,23 @@
       "gplaystate_ptr": "soh.exe+0x2098530",
       "link_state": {
         "player_offset": "0x400"
-      }
+      },
+      "process_names": [
+        "soh.exe"
+      ],
+      "allow_dynamic_build_hash": true,
+      "allow_dynamic_offsets": true,
+      "dynamic_offsets": {
+        "enabled": true,
+        "strategy": "pdb_symbols",
+        "required_symbols": [
+          "gSaveContext",
+          "gPlayState"
+        ],
+        "memory_scan_fallback": false
+      },
+      "dynamic_hash_note": "Exact build_hash is used first. If SoH is updated and only the executable hash changes, this profile can be reused dynamically for soh.exe.",
+      "dynamic_offsets_note": "Exact profile offsets are used first when valid. Unknown SoH hashes resolve gSaveContext and gPlayState from the matching soh.pdb next to soh.exe. No blind RAM scan is used."
     }
   ]
 }
