@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from core.inventory_definitions import BUTTON_ASSIGNABLE_ITEMS, BUTTON_LAYOUT
+from adapter.pdb_symbol_resolver import PdbSymbolResolver
 
 
 class MagicButtonsTeleportControllerMixin:
@@ -175,6 +176,134 @@ class MagicButtonsTeleportControllerMixin:
 
 
 
+    def _dll_symbol_candidates(self) -> dict[str, list[str]]:
+        runtime = self.profile.get("runtime_resolution", {}) if self.profile else {}
+        configured = runtime.get("link_state_symbols", {}) if isinstance(runtime, dict) else {}
+        defaults: dict[str, list[str]] = {
+            "invisible_flag": [
+                "GameInteractor_InvisibleLinkActive",
+                "InvisibleLinkActive",
+            ],
+            "reverse_flag": [
+                "GameInteractor_ReverseControlsActive",
+                "ReverseControlsActive",
+            ],
+            "burn_fn": [
+                "GameInteractor::RawAction::BurnPlayer",
+                "BurnPlayer",
+            ],
+            "freeze_fn": [
+                "GameInteractor::RawAction::FreezePlayer",
+                "FreezePlayer",
+            ],
+            "shock_fn": [
+                "GameInteractor::RawAction::ElectrocutePlayer",
+                "ElectrocutePlayer",
+            ],
+            "spawn_actor_fn": [
+                "GameInteractor::RawAction::SpawnActor",
+                "SpawnActor",
+            ],
+            "actor_spawn_fn": [
+                "Actor_Spawn",
+            ],
+        }
+        if isinstance(configured, dict):
+            for key, value in configured.items():
+                if isinstance(value, str):
+                    defaults[key] = [value]
+                elif isinstance(value, list):
+                    defaults[key] = [str(item) for item in value if str(item).strip()]
+        return defaults
+
+    def _resolve_first_pdb_symbol(self, resolver: PdbSymbolResolver, names: list[str]) -> int:
+        for name in names:
+            try:
+                address = resolver.find_exact(name)
+            except Exception:
+                address = None
+            if address:
+                return int(address)
+        return 0
+
+    def _resolve_dll_runtime_symbols(self, force_refresh: bool = False) -> dict[str, int]:
+        if not force_refresh and hasattr(self, "_dll_runtime_symbols_cache"):
+            cached = getattr(self, "_dll_runtime_symbols_cache")
+            if isinstance(cached, dict):
+                return cached
+
+        if not self.profile:
+            return {}
+
+        exe_path = self.profile.get("runtime_exe_path")
+        if not exe_path:
+            return {}
+
+        resolved: dict[str, int] = {}
+        candidates = self._dll_symbol_candidates()
+        try:
+            with PdbSymbolResolver(self.adapter.memory, str(exe_path)) as resolver:
+                for key, names in candidates.items():
+                    resolved[key] = self._resolve_first_pdb_symbol(resolver, names)
+        except Exception as exc:
+            self._log(f"DLL runtime symbol resolution failed: {exc}")
+            resolved = {key: 0 for key in candidates}
+
+        setattr(self, "_dll_runtime_symbols_cache", resolved)
+        missing = [key for key, value in resolved.items() if not value]
+        if missing:
+            self._log("DLL runtime symbols missing: " + ", ".join(missing))
+        return resolved
+
+    def _get_structure_offset(self, section: str, key: str, default_value: int) -> int:
+        if not self.profile:
+            return default_value
+        root = self.profile.get("structure_offsets", {})
+        values = root.get(section, {}) if isinstance(root, dict) else {}
+        raw = values.get(key) if isinstance(values, dict) else None
+        if raw is None:
+            return default_value
+        if isinstance(raw, int):
+            return raw
+        text = str(raw).strip()
+        return int(text, 16) if text.lower().startswith("0x") else int(text, 10)
+
+    def sync_dll_runtime_context(self, force_refresh: bool = False) -> str:
+        state = self.refresh(force_runtime_scan=force_refresh)
+        if not state.attached or not self.adapter or not self.save_adapter:
+            raise RuntimeError("SoH is not attached")
+
+        play_state = self.save_adapter.get_gplaystate_address()
+        player = self.save_adapter.get_link_state_player_address()
+        if play_state <= 0 or player <= 0:
+            raise RuntimeError("Unable to resolve playState/player for DLL bridge")
+
+        module_base = self.adapter.memory.get_module_base("soh.exe")
+        actor_ctx_offset = self._get_structure_offset("play_state", "actor_ctx", 0x1C24)
+        actor_ctx = play_state + actor_ctx_offset
+        symbols = self._resolve_dll_runtime_symbols(force_refresh=force_refresh)
+
+        output = self.dll_bridge.send_runtime_context(
+            self.adapter.fingerprint.pid,
+            module_base=module_base,
+            play_state=play_state,
+            player=player,
+            invisible_flag=symbols.get("invisible_flag", 0),
+            reverse_flag=symbols.get("reverse_flag", 0),
+            burn_fn=symbols.get("burn_fn", 0),
+            freeze_fn=symbols.get("freeze_fn", 0),
+            shock_fn=symbols.get("shock_fn", 0),
+            spawn_actor_fn=symbols.get("spawn_actor_fn", 0),
+            actor_spawn_fn=symbols.get("actor_spawn_fn", 0),
+            actor_ctx=actor_ctx,
+        )
+        self._log(
+            f"DLL runtime context synced: playState=0x{play_state:016X}, "
+            f"player=0x{player:016X}"
+        )
+        return output
+
+
     def get_dll_bridge_status(self) -> dict:
         state = self.refresh()
         status = self.dll_bridge.get_status()
@@ -183,17 +312,15 @@ class MagicButtonsTeleportControllerMixin:
         return status
 
     def ensure_dll_bridge_injected(self) -> str:
-        state = self.refresh()
-        if not state.attached or not self.adapter:
-            raise RuntimeError("SoH is not attached")
-        output = self.dll_bridge.execute(self.adapter.fingerprint.pid, "inject_only")
-        self._log("DLL bridge injected or already ready")
+        output = self.sync_dll_runtime_context()
+        self._log("DLL bridge injected and runtime context synced")
         return output
 
     def execute_dll_bridge_command(self, command: str) -> str:
         state = self.refresh()
         if not state.attached or not self.adapter:
             raise RuntimeError("SoH is not attached")
+        self.sync_dll_runtime_context()
         output = self.dll_bridge.execute(self.adapter.fingerprint.pid, command)
         self._log(f"DLL bridge command: {command}")
         return output

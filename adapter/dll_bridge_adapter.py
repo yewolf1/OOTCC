@@ -111,18 +111,15 @@ class DllBridgeAdapter:
             return subprocess.CREATE_NO_WINDOW
         return 0
 
-    def execute(self, pid: int, command: str) -> str:
+    def _run_host_payload(self, pid: int, payload: str) -> str:
         self.ensure_ready()
-        normalized = command.strip().lower()
-        if normalized not in BRIDGE_COMMANDS:
-            raise ValueError(f"Unsupported bridge command: {command}")
 
         completed = subprocess.run(
             [
                 str(self.paths.host_path),
                 str(pid),
                 str(self.paths.dll_path.resolve()),
-                normalized,
+                payload,
             ],
             capture_output=True,
             text=True,
@@ -143,3 +140,44 @@ class DllBridgeAdapter:
             raise RuntimeError(detail)
 
         return output
+
+    def send_runtime_context(
+        self,
+        pid: int,
+        *,
+        module_base: int = 0,
+        play_state: int,
+        player: int,
+        invisible_flag: int = 0,
+        reverse_flag: int = 0,
+        burn_fn: int = 0,
+        freeze_fn: int = 0,
+        shock_fn: int = 0,
+        spawn_actor_fn: int = 0,
+        actor_spawn_fn: int = 0,
+        actor_ctx: int = 0,
+    ) -> str:
+        if play_state <= 0 or player <= 0:
+            raise ValueError("Invalid runtime context for DLL bridge")
+
+        payload = (
+            "set_context:"
+            f"moduleBase=0x{module_base:016X};"
+            f"playState=0x{play_state:016X};"
+            f"player=0x{player:016X};"
+            f"invisibleFlag=0x{invisible_flag:016X};"
+            f"reverseFlag=0x{reverse_flag:016X};"
+            f"burnFn=0x{burn_fn:016X};"
+            f"freezeFn=0x{freeze_fn:016X};"
+            f"shockFn=0x{shock_fn:016X};"
+            f"spawnActorFn=0x{spawn_actor_fn:016X};"
+            f"actorSpawnFn=0x{actor_spawn_fn:016X};"
+            f"actorCtx=0x{actor_ctx:016X}"
+        )
+        return self._run_host_payload(pid, payload)
+
+    def execute(self, pid: int, command: str) -> str:
+        normalized = command.strip().lower()
+        if normalized not in BRIDGE_COMMANDS:
+            raise ValueError(f"Unsupported bridge command: {command}")
+        return self._run_host_payload(pid, normalized)

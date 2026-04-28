@@ -17,6 +17,35 @@
         "gPlayState"
       ]
     },
+    "link_state_symbols": {
+      "invisible_flag": [
+        "GameInteractor_InvisibleLinkActive",
+        "InvisibleLinkActive"
+      ],
+      "reverse_flag": [
+        "GameInteractor_ReverseControlsActive",
+        "ReverseControlsActive"
+      ],
+      "burn_fn": [
+        "GameInteractor::RawAction::BurnPlayer",
+        "BurnPlayer"
+      ],
+      "freeze_fn": [
+        "GameInteractor::RawAction::FreezePlayer",
+        "FreezePlayer"
+      ],
+      "shock_fn": [
+        "GameInteractor::RawAction::ElectrocutePlayer",
+        "ElectrocutePlayer"
+      ],
+      "spawn_actor_fn": [
+        "GameInteractor::RawAction::SpawnActor",
+        "SpawnActor"
+      ],
+      "actor_spawn_fn": [
+        "Actor_Spawn"
+      ]
+    },
     "notes": "PDB symbols are used only when no valid runtime_cache entry exists, or when Refresh forces a rescan."
   },
   "structure_offsets": {
@@ -45,7 +74,8 @@
     "play_state": {
       "transition_trigger": "0x21061",
       "next_entrance": "0x21066",
-      "transition_type": "0x210AA"
+      "transition_type": "0x210AA",
+      "actor_ctx": "0x1C24"
     },
     "link_state": {
       "player_offset": "0x400",
