@@ -82,7 +82,9 @@
       "freeze_timer": "0x0110",
       "shock_timer": "0x0891",
       "burn_flag": "0x0A60",
-      "burn_flames": "0x0A61"
+      "burn_flames": "0x0A61",
+      "invisible_flag_rva": "0x01E485E8",
+      "reverse_flag_rva": "0x01E485EB"
     }
   },
   "runtime_cache": {
@@ -98,7 +100,14 @@
       "upgrades_rva": 39365624,
       "quest_items_rva": 39365628,
       "resolved_by": "pdb",
-      "gplaystate_pointer_rva": 39346736
+      "gplaystate_pointer_rva": 39346736,
+      "burn_fn_rva": 6070528,
+      "freeze_fn_rva": 6070416,
+      "shock_fn_rva": 6070688,
+      "spawn_actor_fn_rva": 6077632,
+      "actor_spawn_fn_rva": 14456096,
+      "invisible_flag_rva": 35545724,
+      "reverse_flag_rva": 35545428
     }
   },
   "legacy_profiles": [

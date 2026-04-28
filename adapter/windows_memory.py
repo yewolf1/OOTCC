@@ -22,6 +22,8 @@ PAGE_READWRITE = 0x04
 PAGE_WRITECOPY = 0x08
 PAGE_EXECUTE_READWRITE = 0x40
 PAGE_EXECUTE_WRITECOPY = 0x80
+PAGE_EXECUTE = 0x10
+PAGE_EXECUTE_READ = 0x20
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
@@ -188,6 +190,18 @@ class WindowsProcessMemory:
         if int(info.State) != MEM_COMMIT or protection & PAGE_GUARD or protection & PAGE_NOACCESS:
             return False
         if not protection & writable_flags:
+            return False
+        return address + size <= int(info.BaseAddress) + int(info.RegionSize)
+
+    def is_address_executable(self, address: int, size: int = 1) -> bool:
+        info = self.query_memory(address)
+        if info is None:
+            return False
+        protection = int(info.Protect)
+        executable_flags = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY
+        if int(info.State) != MEM_COMMIT or protection & PAGE_GUARD or protection & PAGE_NOACCESS:
+            return False
+        if not protection & executable_flags:
             return False
         return address + size <= int(info.BaseAddress) + int(info.RegionSize)
 
