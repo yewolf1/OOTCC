@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core.inventory_definitions import AMMO_SLOTS, EQUIPMENT_GROUPS, ITEM_SLOTS, QUEST_FLAGS, UPGRADE_GROUPS
-from core.teleport_definitions import WARP_SONG_DESTINATIONS
+from core.definitions.inventory_definitions import AMMO_SLOTS, EQUIPMENT_GROUPS, ITEM_SLOTS, QUEST_FLAGS, UPGRADE_GROUPS
+from core.definitions.teleport_definitions import WARP_SONG_DESTINATIONS
 
 
 def _slug(text: str) -> str:

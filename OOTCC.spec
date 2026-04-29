@@ -1,6 +1,12 @@
 from PyInstaller.utils.hooks import collect_submodules
 
-hidden_imports = collect_submodules("twitchAPI")
+hidden_imports = (
+    collect_submodules("twitchAPI")
+    + collect_submodules("core")
+    + collect_submodules("adapter")
+    + collect_submodules("ui")
+    + collect_submodules("services")
+)
 
 a = Analysis(
     ["app.py"],

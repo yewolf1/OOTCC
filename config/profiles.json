@@ -1,4 +1,8 @@
 {
+  "app": {
+    "name": "OOT Chaotic Controller By Yewolf",
+    "version": "V1.2.3"
+  },
   "schema_version": 2,
   "runtime_resolution": {
     "enabled": true,
@@ -163,9 +167,5 @@
       },
       "dynamic_hash_note": "Exact build_hash is used first. If SoH is updated and only the executable hash changes, this profile can be reused dynamically for soh.exe."
     }
-  ],
-  "app": {
-    "name": "SoH Bridge",
-    "version": "V1.1.3"
-  }
+  ]
 }
