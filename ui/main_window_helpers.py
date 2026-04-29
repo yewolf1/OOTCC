@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -12,32 +11,6 @@ class MainWindowHelperMixin:
         if getattr(sys, "frozen", False):
             return str(Path(sys.executable).resolve().parent)
         return str(Path(__file__).resolve().parents[1])
-
-    def _load_app_metadata(self) -> dict[str, str]:
-        defaults = {"name": "SoH Bridge", "version": "V1.0"}
-        profiles_path = Path(self._base_dir()) / "config" / "profiles.json"
-
-        try:
-            data = json.loads(profiles_path.read_text(encoding="utf-8"))
-        except Exception:
-            return defaults
-
-        app = data.get("app", {})
-        if not isinstance(app, dict):
-            return defaults
-
-        name = str(app.get("name", defaults["name"])).strip() or defaults["name"]
-        version = str(app.get("version", defaults["version"])).strip() or defaults["version"]
-        return {"name": name, "version": version}
-
-    def _app_display_title(self) -> str:
-        metadata = getattr(self, "app_metadata", None)
-        if not isinstance(metadata, dict):
-            metadata = self._load_app_metadata()
-
-        name = str(metadata.get("name", "SoH Bridge")).strip() or "SoH Bridge"
-        version = str(metadata.get("version", "")).strip()
-        return f"{name} {version}".strip()
 
     def _equipment_groups_items(self) -> list[tuple[str, dict]]:
         if isinstance(EQUIPMENT_GROUPS, dict):

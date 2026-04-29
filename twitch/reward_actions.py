@@ -19,6 +19,25 @@ if TYPE_CHECKING:
 
 
 class TwitchRewardExecutor:
+    LINK_STATUS_COMMANDS = {
+        'burn': 'burn',
+        'freeze': 'freeze',
+        'shock': 'shock',
+    }
+    LINK_SPECIAL_STATUS_COMMANDS = {
+        'invisible on': 'invisible_on',
+        'invisible off': 'invisible_off',
+        'reverse on': 'reverse_on',
+        'reverse off': 'reverse_off',
+    }
+    SPECIAL_SPAWN_COMMANDS = {
+        'bomb': 'spawn_lit_bomb',
+        'bomb_rain': 'bomb_rain',
+        'explosion': 'spawn_explosion',
+        'cucco': 'spawn_cucco_storm',
+        'darklink': 'spawn_darklink',
+    }
+
     def __init__(self, controller: 'AppController') -> None:
         self.controller = controller
         self._temporary_disabled_items: dict[int, dict[str, float | int | str]] = {}
@@ -496,44 +515,34 @@ class TwitchRewardExecutor:
         self._last_teleport_at = now
         return f'Twitch redeem applied: teleport {label}'
 
+    def _execute_mapped_dll_command(self, value: str, commands: dict[str, str], error_message: str) -> None:
+        command = commands.get(value)
+        if command is None:
+            raise ValueError(error_message)
+        self.controller.execute_dll_bridge_command(command)
+
     def _link_status(self, value: str) -> str:
-        if value == 'burn':
-            self.controller.execute_dll_bridge_command('burn')
-        elif value == 'freeze':
-            self.controller.execute_dll_bridge_command('freeze')
-        elif value == 'shock':
-            self.controller.execute_dll_bridge_command('shock')
-        else:
-            raise ValueError('Link Status expects one of: burn, freeze, shock')
+        self._execute_mapped_dll_command(
+            value,
+            self.LINK_STATUS_COMMANDS,
+            'Link Status expects one of: burn, freeze, shock',
+        )
         return f'Twitch redeem applied: link status {value}'
 
     def _link_special_status(self, value: str) -> str:
-        if value == 'invisible on':
-            self.controller.execute_dll_bridge_command('invisible_on')
-        elif value == 'invisible off':
-            self.controller.execute_dll_bridge_command('invisible_off')
-        elif value == 'reverse on':
-            self.controller.execute_dll_bridge_command('reverse_on')
-        elif value == 'reverse off':
-            self.controller.execute_dll_bridge_command('reverse_off')
-        else:
-            raise ValueError('Link Special Status expects one of: invisible on, invisible off, reverse on, reverse off')
+        self._execute_mapped_dll_command(
+            value,
+            self.LINK_SPECIAL_STATUS_COMMANDS,
+            'Link Special Status expects one of: invisible on, invisible off, reverse on, reverse off',
+        )
         return f'Twitch redeem applied: link special status {value}'
 
     def _special_spawn(self, value: str) -> str:
-        if value == 'bomb':
-            self.controller.execute_dll_bridge_command('spawn_lit_bomb')
-        elif value == 'bomb_rain':
-            self.controller.execute_dll_bridge_command('bomb_rain')
-        elif value == 'explosion':
-            self.controller.execute_dll_bridge_command('spawn_explosion')
-        elif value == 'cucco':
-            self.controller.execute_dll_bridge_command('spawn_cucco_storm')
-        elif value == 'darklink':
-            self.controller.execute_dll_bridge_command('spawn_darklink')
-        else:
-            raise ValueError('Special Spawn expects one of: bomb, bomb rain, explosion, cucco, darklink')
-
+        self._execute_mapped_dll_command(
+            value,
+            self.SPECIAL_SPAWN_COMMANDS,
+            'Special Spawn expects one of: bomb, bomb rain, explosion, cucco, darklink',
+        )
         return f'Twitch redeem applied: special spawn {value}'
 
     def _quest_status(self, value: str) -> str:

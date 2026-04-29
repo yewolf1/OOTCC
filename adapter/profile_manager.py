@@ -55,6 +55,15 @@ class ProfileManager:
             return cache_name.strip()
         return "runtime_cache"
 
+    def app_metadata(self) -> dict[str, str]:
+        """Return application display metadata from profiles.json."""
+        section = self._raw.get("app", {})
+        if not isinstance(section, dict):
+            section = {}
+        name = str(section.get("name") or "SoH Bridge").strip()
+        version = str(section.get("version") or "V1.0").strip()
+        return {"name": name, "version": version, "title": f"{name} {version}"}
+
     def runtime_cache(self) -> dict[str, Any]:
         cache = self._raw.get(self._cache_section_name(), {})
         return cache if isinstance(cache, dict) else {}

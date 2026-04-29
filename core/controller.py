@@ -57,6 +57,10 @@ class AppController(
             on_status=self._set_twitch_status,
         )
 
+
+    def get_app_metadata(self) -> dict[str, str]:
+        return self.profile_manager.app_metadata()
+
     def process_twitch_timers(self) -> None:
         self.twitch_rewards.tick()
 

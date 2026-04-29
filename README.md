@@ -1,4 +1,4 @@
-# OOTCC 
+# OOTCC V1
 
 OOTCC is a Windows desktop application that connects Twitch Channel Point redeems to live gameplay actions in **Ship of Harkinian**.
 

@@ -25,12 +25,13 @@ class MainWindow(
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.app_metadata = self._load_app_metadata()
-        self.title(self._app_display_title())
+        self.controller = AppController(self._base_dir())
+        self.app_metadata = self.controller.get_app_metadata()
+        self.app_title = self.app_metadata.get("title", "SoH Bridge V1.0")
+        self.title(self.app_title)
         self.geometry("1520x940")
         self.minsize(1320, 860)
 
-        self.controller = AppController(self._base_dir())
         self.presenter = BridgePresenter(self, self.controller)
 
         self.status_var = tk.StringVar(value="Not attached")

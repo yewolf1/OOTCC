@@ -22,7 +22,7 @@ class MainWindowShellBuilderMixin:
         header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=18, pady=(18, 12))
         header.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(header, text=self._app_display_title(), font=ctk.CTkFont(size=30, weight="bold")).grid(
+        ctk.CTkLabel(header, text=getattr(self, "app_title", "SoH Bridge V1.0"), font=ctk.CTkFont(size=30, weight="bold")).grid(
             row=0, column=0, padx=20, pady=18, sticky="w"
         )
 
