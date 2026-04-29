@@ -1,4 +1,8 @@
 {
+  "app": {
+    "name": "OOT Chaotic Controller",
+    "version": "V1.1.3"
+  },
   "schema_version": 2,
   "runtime_resolution": {
     "enabled": true,
@@ -101,13 +105,13 @@
       "quest_items_rva": 39365628,
       "resolved_by": "pdb",
       "gplaystate_pointer_rva": 39346736,
+      "invisible_flag_rva": 35545724,
+      "reverse_flag_rva": 35545428,
       "burn_fn_rva": 6070528,
       "freeze_fn_rva": 6070416,
       "shock_fn_rva": 6070688,
       "spawn_actor_fn_rva": 6077632,
-      "actor_spawn_fn_rva": 14456096,
-      "invisible_flag_rva": 35545724,
-      "reverse_flag_rva": 35545428
+      "actor_spawn_fn_rva": 14456096
     }
   },
   "legacy_profiles": [

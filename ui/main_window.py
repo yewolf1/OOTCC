@@ -25,7 +25,8 @@ class MainWindow(
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.title("SoH Bridge V1.0")
+        self.app_metadata = self._load_app_metadata()
+        self.title(self._app_display_title())
         self.geometry("1520x940")
         self.minsize(1320, 860)
 
