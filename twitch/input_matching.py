@@ -7,13 +7,14 @@ def normalize_input(text: str) -> str:
     value = (text or '').strip().lower()
     value = value.replace("'", '')
     value = value.replace('.', '')
-    value = re.sub(r'[_\-]+', ' ', value)
+    value = value.replace('_', ' ')
+    value = re.sub(r'(?<!\d)-(?!\d)', ' ', value)
     value = re.sub(r'\s+', ' ', value)
     return value.strip()
 
 
 def compact_input(text: str) -> str:
-    return re.sub(r'[^a-z0-9+]+', '', normalize_input(text))
+    return re.sub(r'[^a-z0-9+-]+', '', normalize_input(text))
 
 
 def _variants(text: str) -> set[str]:
@@ -76,6 +77,12 @@ def resolve_input(value: str, options: dict[str, object], aliases: dict[str, str
         for alias, target in aliases.items()
         for alias_variant in _variants(alias)
     }
+    alias_variants = [
+        (target, alias_variant)
+        for alias, target in aliases.items()
+        if target in options
+        for alias_variant in _variants(alias)
+    ]
 
     for variant in _variants(normalized_value):
         alias_target = normalized_aliases.get(variant)
@@ -95,8 +102,16 @@ def resolve_input(value: str, options: dict[str, object], aliases: dict[str, str
         if compact_value == compact_input(variant):
             return option
 
+    for target, variant in alias_variants:
+        if compact_value == compact_input(variant):
+            return target
+
     for option, variant in option_variants:
         if _levenshtein_at_most_one(compact_value, compact_input(variant)):
             return option
+
+    for target, variant in alias_variants:
+        if _levenshtein_at_most_one(compact_value, compact_input(variant)):
+            return target
 
     return None
