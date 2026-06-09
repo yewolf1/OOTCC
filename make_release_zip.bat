@@ -48,6 +48,9 @@ echo   }
 echo }
 ) > "%RELEASE_DIR%\config\twitch_config.json"
 
+if exist ".\config\bluetooth_hr_config.json" (
+copy /y ".\config\bluetooth_hr_config.json" "%RELEASE_DIR%\config\bluetooth_hr_config.json"
+) else (
 (
 echo {
 echo   "auto_connect_on_launch": false,
@@ -71,6 +74,7 @@ echo     ]
 echo   }
 echo }
 ) > "%RELEASE_DIR%\config\bluetooth_hr_config.json"
+)
 
 echo {}> "%RELEASE_DIR%\config\twitch_tokens.json"
 

@@ -41,6 +41,7 @@ class BleHeartRateClient:
         self._stop_event: asyncio.Event | None = None
         self._connected = False
         self._last_status = ""
+        self._last_scan_summary = ""
 
     @property
     def is_running(self) -> bool:
@@ -121,7 +122,11 @@ class BleHeartRateClient:
 
             if device is None:
                 self._connected = False
-                self._emit_status("No compatible Bluetooth heart-rate monitor found")
+                summary = self._last_scan_summary.strip()
+                if summary:
+                    self._emit_status(f"No compatible Bluetooth heart-rate monitor found ({summary})")
+                else:
+                    self._emit_status("No compatible Bluetooth heart-rate monitor found")
                 try:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=reconnect_delay_seconds)
                     break
@@ -140,8 +145,14 @@ class BleHeartRateClient:
                     continue
 
     async def _find_candidate_device(self, config: dict[str, Any]) -> BleHeartRateDevice | None:
+        self._last_scan_summary = ""
         scan_timeout_seconds = config["scan_timeout_ms"] / 1000.0
         preferred_address = str(config.get("preferred_address", "")).strip()
+        preferred_device_name = str(config.get("preferred_device_name", "")).strip()
+        filtered_entries: list[tuple[Any, Any]] = []
+        fallback_entries: list[tuple[Any, Any]] = []
+        direct_probe_attempted = False
+        probed_candidates = 0
 
         if preferred_address:
             self._emit_status(f"Looking for saved device {preferred_address}...")
@@ -151,16 +162,45 @@ class BleHeartRateClient:
                     address=str(device.address or preferred_address),
                     name=str(device.name or config.get("preferred_device_name") or "Bluetooth HR"),
                 )
+            direct_probe_attempted = True
+            direct_candidate = await self._probe_saved_address_for_heart_rate_service(
+                preferred_address,
+                preferred_device_name or "Bluetooth HR",
+            )
+            if direct_candidate is not None:
+                return direct_candidate
 
         self._emit_status("Scanning for Bluetooth heart-rate monitor...")
-        entries = await self._discover_with_advertisements(scan_timeout_seconds, service_filter=[HEART_RATE_SERVICE_UUID])
-        selected = self._select_candidate(entries, config)
+        filtered_entries = await self._discover_with_advertisements(
+            scan_timeout_seconds,
+            service_filter=[HEART_RATE_SERVICE_UUID],
+        )
+        selected = self._select_candidate(filtered_entries, config)
         if selected is not None:
             return selected
 
         self._emit_status("Fallback scan without service filter...")
-        entries = await self._discover_with_advertisements(scan_timeout_seconds, service_filter=None)
-        return self._select_candidate(entries, config)
+        fallback_entries = await self._discover_with_advertisements(
+            scan_timeout_seconds,
+            service_filter=None,
+        )
+        selected = self._select_candidate(fallback_entries, config)
+        if selected is not None:
+            return selected
+
+        merged_entries = self._merge_discovery_entries(filtered_entries, fallback_entries)
+        probed, probed_candidates = await self._probe_candidates_for_heart_rate_service(merged_entries, config)
+        if probed is not None:
+            return probed
+
+        self._last_scan_summary = self._format_scan_summary(
+            preferred_address_used=bool(preferred_address),
+            direct_probe_attempted=direct_probe_attempted,
+            filtered_count=len(filtered_entries),
+            fallback_count=len(fallback_entries),
+            probed_candidates=probed_candidates,
+        )
+        return None
 
     async def _discover_with_advertisements(
         self,
@@ -177,6 +217,7 @@ class BleHeartRateClient:
             return None
 
         preferred_address = str(config.get("preferred_address", "")).strip().lower()
+        preferred_device_name = str(config.get("preferred_device_name", "")).strip().lower()
         preferred_name_substrings = [
             str(item).strip().lower()
             for item in config.get("preferred_name_substrings", [])
@@ -196,6 +237,7 @@ class BleHeartRateClient:
                 or getattr(device, "name", None)
                 or "Unknown BLE device"
             ).strip()
+            name_lower = name.lower()
             service_uuids = {
                 str(item).strip().lower()
                 for item in (getattr(advertisement, "service_uuids", None) or [])
@@ -206,14 +248,20 @@ class BleHeartRateClient:
             score = 0
             if preferred_address and address.lower() == preferred_address:
                 score += 1000
-            if any(token in name.lower() for token in preferred_name_substrings):
+            if preferred_device_name and name_lower == preferred_device_name:
+                score += 400
+            elif preferred_device_name and (
+                preferred_device_name in name_lower or name_lower in preferred_device_name
+            ):
+                score += 250
+            if any(token in name_lower for token in preferred_name_substrings):
                 score += 200
             if HEART_RATE_SERVICE_UUID.lower() in service_uuids or "180d" in service_uuids:
                 score += 100
             if name and name != "Unknown BLE device":
                 score += 10
 
-            if score <= 0:
+            if score < 100:
                 continue
 
             rssi_value = int(rssi) if isinstance(rssi, int) else -127
@@ -227,6 +275,150 @@ class BleHeartRateClient:
                 )
 
         return best_candidate
+
+    def _rank_probe_candidates(self, entries: list[tuple[Any, Any]], config: dict[str, Any]) -> list[BleHeartRateDevice]:
+        preferred_address = str(config.get("preferred_address", "")).strip().lower()
+        preferred_device_name = str(config.get("preferred_device_name", "")).strip().lower()
+        preferred_name_substrings = [
+            str(item).strip().lower()
+            for item in config.get("preferred_name_substrings", [])
+            if str(item).strip()
+        ]
+
+        ranked_rows: list[tuple[tuple[int, int, int], BleHeartRateDevice]] = []
+        seen_addresses: set[str] = set()
+
+        for device, advertisement in entries:
+            address = str(getattr(device, "address", "") or "").strip()
+            if not address:
+                continue
+
+            normalized_address = address.lower()
+            if normalized_address in seen_addresses:
+                continue
+            seen_addresses.add(normalized_address)
+
+            name = str(
+                getattr(advertisement, "local_name", None)
+                or getattr(device, "name", None)
+                or "Unknown BLE device"
+            ).strip()
+            name_lower = name.lower()
+            service_uuids = {
+                str(item).strip().lower()
+                for item in (getattr(advertisement, "service_uuids", None) or [])
+                if str(item).strip()
+            }
+            raw_rssi = getattr(advertisement, "rssi", None)
+            rssi_value = int(raw_rssi) if isinstance(raw_rssi, int) else -127
+
+            score = 0
+            if preferred_address and normalized_address == preferred_address:
+                score += 1000
+            if preferred_device_name and name_lower == preferred_device_name:
+                score += 400
+            elif preferred_device_name and (
+                preferred_device_name in name_lower or name_lower in preferred_device_name
+            ):
+                score += 250
+            if any(token in name_lower for token in preferred_name_substrings):
+                score += 200
+            if HEART_RATE_SERVICE_UUID.lower() in service_uuids or "180d" in service_uuids:
+                score += 100
+            if name and name != "Unknown BLE device":
+                score += 10
+
+            ranked_rows.append((
+                (score, rssi_value, 1 if name != "Unknown BLE device" else 0),
+                BleHeartRateDevice(
+                    address=address,
+                    name=name,
+                    rssi=rssi_value if isinstance(rssi_value, int) else None,
+                ),
+            ))
+
+        ranked_rows.sort(key=lambda row: row[0], reverse=True)
+        return [candidate for _key, candidate in ranked_rows]
+
+    async def _probe_candidates_for_heart_rate_service(
+        self,
+        entries: list[tuple[Any, Any]],
+        config: dict[str, Any],
+    ) -> tuple[BleHeartRateDevice | None, int]:
+        candidates = self._rank_probe_candidates(entries, config)
+        if not candidates:
+            return None, 0
+
+        probe_limit = min(6, len(candidates))
+        self._emit_status(f"Probing {probe_limit} scanned device(s) for heart-rate service...")
+
+        for candidate in candidates[:probe_limit]:
+            if await self._address_exposes_heart_rate_service(candidate.address):
+                return candidate, probe_limit
+
+        return None, probe_limit
+
+    async def _probe_saved_address_for_heart_rate_service(
+        self,
+        address: str,
+        fallback_name: str,
+    ) -> BleHeartRateDevice | None:
+        self._emit_status(f"Trying saved device {address} directly...")
+        if not await self._address_exposes_heart_rate_service(address):
+            return None
+        return BleHeartRateDevice(address=address, name=fallback_name or "Bluetooth HR")
+
+    async def _address_exposes_heart_rate_service(self, address: str) -> bool:
+        client = BleakClient(address)
+        try:
+            await asyncio.wait_for(client.connect(), timeout=6.0)
+            services = client.services
+            return bool(services is not None and services.get_service(HEART_RATE_SERVICE_UUID))
+        except Exception:
+            return False
+        finally:
+            try:
+                if client.is_connected:
+                    await client.disconnect()
+            except Exception:
+                pass
+
+    def _merge_discovery_entries(self, *entry_groups: list[tuple[Any, Any]]) -> list[tuple[Any, Any]]:
+        merged: list[tuple[Any, Any]] = []
+        seen_addresses: set[str] = set()
+
+        for entries in entry_groups:
+            for device, advertisement in entries:
+                address = str(getattr(device, "address", "") or "").strip().lower()
+                if not address or address in seen_addresses:
+                    continue
+                seen_addresses.add(address)
+                merged.append((device, advertisement))
+
+        return merged
+
+    def _format_scan_summary(
+        self,
+        *,
+        preferred_address_used: bool,
+        direct_probe_attempted: bool,
+        filtered_count: int,
+        fallback_count: int,
+        probed_candidates: int,
+    ) -> str:
+        details = [
+            f"filtered scan: {filtered_count}",
+            f"fallback scan: {fallback_count}",
+        ]
+        if preferred_address_used:
+            details.append(
+                "saved device direct probe attempted"
+                if direct_probe_attempted
+                else "saved device lookup only"
+            )
+        if probed_candidates > 0:
+            details.append(f"service probes: {probed_candidates}")
+        return ", ".join(details)
 
     async def _connect_and_stream(self, device: BleHeartRateDevice) -> None:
         disconnect_event = asyncio.Event()
