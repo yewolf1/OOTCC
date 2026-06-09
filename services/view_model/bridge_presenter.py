@@ -13,6 +13,7 @@ from core.definitions.inventory_definitions import (
 )
 from services.view_model.view_models import (
     AppViewModel,
+    BluetoothHrViewModel,
     ButtonsViewModel,
     EquipmentViewModel,
     HealthViewModel,
@@ -78,6 +79,27 @@ class BridgePresenter:
 
     def simulate_twitch_reward(self, reward_title: str, user_input: str, user_name: str) -> None:
         self._run(lambda: self.controller._handle_twitch_redeem(reward_title, user_input, user_name), "Twitch error")
+
+    def connect_ble_hr(self) -> None:
+        self._run(self.controller.connect_ble_hr, "Bluetooth HR error")
+
+    def disconnect_ble_hr(self) -> None:
+        self._run(self.controller.disconnect_ble_hr, "Bluetooth HR error")
+
+    def clear_ble_hr_preferred_device(self) -> None:
+        self._run(self.controller.clear_ble_hr_preferred_device, "Bluetooth HR error")
+
+    def save_ble_hr_enemy_speed_levels(self, level_rows: list[tuple[str, str]]) -> bool:
+        try:
+            self.controller.save_ble_hr_enemy_speed_levels(level_rows)
+            if hasattr(self.view, "mark_ble_hr_levels_clean"):
+                self.view.mark_ble_hr_levels_clean()
+            return True
+        except Exception as exc:
+            self.view.show_error("Bluetooth HR error", str(exc))
+            return False
+        finally:
+            self.refresh_state()
 
     def apply_item_value(self, slot: int, selected_label: str, choice_map: dict[str, int]) -> None:
         def action() -> None:
@@ -228,6 +250,7 @@ class BridgePresenter:
             link_state=self._build_link_state_view_model(),
             quest_status=self._build_quest_status_view_model(),
             twitch=self._build_twitch_view_model(),
+            ble_hr=self._build_ble_hr_view_model(),
             logs=self.controller.log_lines(),
         )
 
@@ -516,6 +539,47 @@ class BridgePresenter:
                 channel_login="",
                 last_event_text="No Twitch redeem received yet",
             )
+
+    def _build_ble_hr_view_model(self) -> BluetoothHrViewModel:
+        try:
+            state = self.controller.get_ble_hr_state()
+            return BluetoothHrViewModel(
+                status_text=state.get("status_text", "Disconnected"),
+                config_path=state.get("config_path", ""),
+                device_text=state.get("device_text", "No preferred device saved yet"),
+                live_bpm_text=state.get("live_bpm_text", "--"),
+                live_bpm_color=state.get("live_bpm_color", "#F8FAFC"),
+                live_detail_text=state.get("live_detail_text", "Waiting for Bluetooth heart rate"),
+                sample_text=state.get("sample_text", "No heart-rate sample received yet"),
+                rule_text=state.get("rule_text", "Bluetooth HR rules unavailable"),
+                hyper_state_text=state.get("hyper_state_text", "Inactive"),
+                level_rows=tuple(
+                    (str(row[0]), str(row[1]))
+                    for row in state.get("level_rows", [])
+                    if isinstance(row, (list, tuple)) and len(row) == 2
+                ),
+            )
+        except Exception:
+            return BluetoothHrViewModel(
+                status_text="Disconnected",
+                config_path="",
+                device_text="No preferred device saved yet",
+                live_bpm_text="--",
+                live_bpm_color="#F8FAFC",
+                live_detail_text="Waiting for Bluetooth heart rate",
+                sample_text="No heart-rate sample received yet",
+                rule_text="Bluetooth HR rules unavailable",
+                hyper_state_text="Inactive",
+                level_rows=(
+                    ("100", "125"),
+                    ("115", "150"),
+                    ("130", "175"),
+                    ("145", "200"),
+                ),
+            )
+
+    def refresh_ble_hr_state(self) -> None:
+        self.view.render_ble_hr(self._build_ble_hr_view_model())
 
     def _format_item_value(self, slot: int, value: int) -> str:
         item_def = ITEM_SLOTS.get(slot)

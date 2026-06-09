@@ -133,3 +133,9 @@ class MainWindowHelperMixin:
             self.presenter.refresh_state()
         finally:
             self.after(3000, self._auto_refresh_state)
+
+    def _ble_hr_panel_tick(self) -> None:
+        try:
+            self.presenter.refresh_ble_hr_state()
+        finally:
+            self.after(750, self._ble_hr_panel_tick)

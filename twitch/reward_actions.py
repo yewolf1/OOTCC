@@ -147,13 +147,48 @@ LINK_SPECIAL_STATUS_CHOICES = {
     'invisible off': 'invisible_off',
     'reverse on': 'reverse_on',
     'reverse off': 'reverse_off',
+    'hyper enemies on': 'hyper_enemies_on',
+    'hyper enemies off': 'hyper_enemies_off',
 }
 LINK_SPECIAL_STATUS_ALIASES = {
     'invis on': 'invisible on',
     'invis off': 'invisible off',
     'reverse controls on': 'reverse on',
     'reverse controls off': 'reverse off',
+    'hyper on': 'hyper enemies on',
+    'hyper off': 'hyper enemies off',
 }
+LINK_SPECIAL_STATUS_EFFECTS = {
+    'invisible': {
+        'on_choice': 'invisible on',
+        'off_choice': 'invisible off',
+        'on_command': 'invisible_on',
+        'off_command': 'invisible_off',
+        'title': 'Invisible',
+    },
+    'reverse': {
+        'on_choice': 'reverse on',
+        'off_choice': 'reverse off',
+        'on_command': 'reverse_on',
+        'off_command': 'reverse_off',
+        'title': 'Reverse Controls',
+    },
+    'hyper_enemies': {
+        'on_choice': 'hyper enemies on',
+        'off_choice': 'hyper enemies off',
+        'on_command': 'hyper_enemies_on',
+        'off_command': 'hyper_enemies_off',
+        'title': 'Hyper Enemies',
+    },
+}
+LINK_SPECIAL_STATUS_EFFECT_BY_CHOICE = {
+    spec['on_choice']: (effect_key, True)
+    for effect_key, spec in LINK_SPECIAL_STATUS_EFFECTS.items()
+}
+LINK_SPECIAL_STATUS_EFFECT_BY_CHOICE.update({
+    spec['off_choice']: (effect_key, False)
+    for effect_key, spec in LINK_SPECIAL_STATUS_EFFECTS.items()
+})
 
 SPECIAL_SPAWN_CHOICES = {
     'bomb': 'spawn_lit_bomb',
@@ -204,9 +239,14 @@ class TwitchRewardExecutor:
         self._magic_capacity_none_effects: list[dict[str, float | int | str | bool]] = []
         self._magic_capacity_restore_state: dict[str, int | bool] | None = None
         self._heart_capacity_effects: list[dict[str, float | str]] = []
+        self._link_special_status_effects: dict[str, list[dict[str, float | int | str]]] = {
+            effect_key: []
+            for effect_key in LINK_SPECIAL_STATUS_EFFECTS
+        }
         self._magic_capacity_none_duration_seconds: float = 120.0
         self._heart_capacity_duration_seconds: float = 60.0
         self._item_toggle_duration_seconds: float = 60.0
+        self._link_special_status_duration_seconds: float = 120.0
         self._last_teleport_at: float = 0.0
         self._next_effect_id: int = 1
         self._current_user_name: str = ''
@@ -277,6 +317,7 @@ class TwitchRewardExecutor:
         self._restore_expired_magic_capacity_effects()
         self._restore_expired_items()
         self._restore_expired_heart_capacity_effects()
+        self._restore_expired_link_special_status_effects()
         self._prune_overlay_events()
 
     def get_overlay_entries(self) -> list[dict[str, str | int]]:
@@ -312,6 +353,27 @@ class TwitchRewardExecutor:
                     'remaining_seconds': remaining_seconds,
                     'created_at': float(latest_effect.get('created_at', 0.0)),
                 })
+
+        for effect_key, effect_list in self._link_special_status_effects.items():
+            if not effect_list:
+                continue
+
+            queue_end = max(float(effect['expires_at']) for effect in effect_list)
+            remaining_seconds = max(0, int(queue_end - now + 0.999))
+            if remaining_seconds <= 0:
+                continue
+
+            queue_count = len(effect_list)
+            latest_effect = effect_list[-1]
+            title = str(LINK_SPECIAL_STATUS_EFFECTS[effect_key]['title'])
+            detail = 'active' if queue_count == 1 else f'queued x{queue_count}'
+            entries.append({
+                'viewer': str(latest_effect.get('viewer', '')),
+                'title': title,
+                'detail': detail,
+                'remaining_seconds': remaining_seconds,
+                'created_at': float(latest_effect.get('created_at', 0.0)),
+            })
 
         for effect in self._temporary_disabled_items.values():
             remaining_seconds = max(0, int(float(effect['expires_at']) - now + 0.999))
@@ -560,6 +622,76 @@ class TwitchRewardExecutor:
         for effect in expired_effects:
             delta = float(effect['delta'])
             self.controller._log(f'Temporary heart capacity restored: {delta:+.0f} expired')
+
+    def _restore_expired_link_special_status_effects(self) -> None:
+        now = time.monotonic()
+
+        for effect_key, spec in LINK_SPECIAL_STATUS_EFFECTS.items():
+            effect_list = self._link_special_status_effects[effect_key]
+            if not effect_list:
+                continue
+
+            remaining_effects = [
+                effect
+                for effect in effect_list
+                if now < float(effect['expires_at'])
+            ]
+            if len(remaining_effects) == len(effect_list):
+                continue
+
+            self._link_special_status_effects[effect_key] = remaining_effects
+            if remaining_effects:
+                continue
+
+            try:
+                self.controller.execute_dll_bridge_command(str(spec['off_command']))
+                self.controller._log(f'Temporary link special status restored: {spec["title"]} expired')
+            except Exception as exc:
+                self.controller._log(f'Temporary link special status restore failed for {spec["title"]}: {exc}')
+
+    def _queue_link_special_status_effect(self, effect_key: str) -> str:
+        spec = LINK_SPECIAL_STATUS_EFFECTS[effect_key]
+        effect_list = self._link_special_status_effects[effect_key]
+        state = self.controller.refresh()
+        if not state.attached or not self.controller.adapter:
+            raise RuntimeError('SoH is not attached')
+
+        now = time.monotonic()
+        was_active = bool(effect_list)
+        queue_end = max(
+            now,
+            max((float(effect['expires_at']) for effect in effect_list), default=now),
+        )
+        expires_at = queue_end + self._link_special_status_duration_seconds
+        queued_effect = {
+            'id': float(self._allocate_effect_id()),
+            'expires_at': expires_at,
+            'created_at': now,
+            'viewer': self._current_user_name,
+        }
+        effect_list.append(queued_effect)
+
+        if not was_active:
+            try:
+                self.controller.execute_dll_bridge_command(str(spec['on_command']))
+            except Exception:
+                effect_list.pop()
+                raise
+
+        queue_count = len(effect_list)
+        total_seconds = int(expires_at - now + 0.999)
+        return (
+            f'Twitch redeem applied: link special status {spec["on_choice"]} for 120s '
+            f'(queue: {queue_count}, total remaining: {total_seconds}s)'
+        )
+
+    def _clear_link_special_status_effect(self, effect_key: str) -> str:
+        spec = LINK_SPECIAL_STATUS_EFFECTS[effect_key]
+        cleared_count = len(self._link_special_status_effects[effect_key])
+        self._link_special_status_effects[effect_key] = []
+        self.controller.execute_dll_bridge_command(str(spec['off_command']))
+        queue_detail = f' and cleared {cleared_count} queued effect(s)' if cleared_count else ''
+        return f'Twitch redeem applied: link special status {spec["off_choice"]}{queue_detail}'
 
     def _kill_link(self, _value: str) -> str:
         self.controller.set_health_hearts(0.0)
@@ -865,11 +997,13 @@ class TwitchRewardExecutor:
         choice = self._resolve_choice(
             value,
             LINK_SPECIAL_STATUS_CHOICES,
-            'Link Special Status expects one of: invisible on, invisible off, reverse on, reverse off',
+            'Link Special Status expects one of: invisible on, invisible off, reverse on, reverse off, hyper enemies on, hyper enemies off',
             LINK_SPECIAL_STATUS_ALIASES,
         )
-        self.controller.execute_dll_bridge_command(LINK_SPECIAL_STATUS_CHOICES[choice])
-        return f'Twitch redeem applied: link special status {choice}'
+        effect_key, enabled = LINK_SPECIAL_STATUS_EFFECT_BY_CHOICE[choice]
+        if enabled:
+            return self._queue_link_special_status_effect(effect_key)
+        return self._clear_link_special_status_effect(effect_key)
 
     def _special_spawn(self, value: str) -> str:
         choice = self._resolve_choice(

@@ -106,7 +106,7 @@ REWARD_UI_HELP = {
     "Sword Mode": "Allowed: swordless, kokiri, ms, biggoron",
     "Teleport": "Allowed: " + ", ".join(list(TELEPORT_REWARD_NAMES.keys()) + ["random"]) + " | 10s global cooldown",
     "Link Status": "Allowed: burn, freeze, shock",
-    "Link Special Status": "Allowed: invisible on, invisible off, reverse on, reverse off",
+    "Link Special Status": "Allowed: invisible on, invisible off, reverse on, reverse off, hyper enemies on, hyper enemies off | each ON lasts 120s and stacks, OFF clears the queue",
     "Special Spawn": "Allowed: bomb, bomb_rain, explosion, cucco, darklink",
     "Quest Status": "Format: add <name> or remove <name> | Names: " + ", ".join(QUEST_STATUS_NAMES.keys()),
 }

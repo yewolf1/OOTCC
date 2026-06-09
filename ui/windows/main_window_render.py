@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from tkinter import messagebox
 
-from services.view_model.view_models import AppViewModel
+from services.view_model.view_models import AppViewModel, BluetoothHrViewModel
 
 
 class MainWindowRenderMixin:
@@ -20,6 +20,7 @@ class MainWindowRenderMixin:
         self._render_link_state(view_model)
         self._render_quest_status(view_model)
         self._render_twitch(view_model)
+        self.render_ble_hr(view_model.ble_hr)
         self._render_logs(view_model.logs)
 
     def show_error(self, title: str, message: str) -> None:
@@ -111,6 +112,27 @@ class MainWindowRenderMixin:
         self.twitch_config_path_var.set(view_model.twitch.config_path)
         self.twitch_channel_login_var.set(view_model.twitch.channel_login)
         self.twitch_last_event_var.set(view_model.twitch.last_event_text)
+
+    def render_ble_hr(self, view_model: BluetoothHrViewModel) -> None:
+        self.ble_hr_status_var.set(view_model.status_text)
+        self.ble_hr_config_path_var.set(view_model.config_path)
+        self.ble_hr_device_var.set(view_model.device_text)
+        self.ble_hr_live_bpm_var.set(view_model.live_bpm_text)
+        self.ble_hr_live_detail_var.set(view_model.live_detail_text)
+        self.ble_hr_sample_var.set(view_model.sample_text)
+        self.ble_hr_rule_var.set(view_model.rule_text)
+        self.ble_hr_hyper_state_var.set(view_model.hyper_state_text)
+        self.sync_ble_hr_level_rows(view_model.level_rows)
+
+        if view_model.sample_text != self._ble_hr_anim_last_sample_text and view_model.live_bpm_text != "--":
+            self._trigger_ble_hr_pulse()
+        if view_model.live_bpm_color != self._ble_hr_anim_last_color and view_model.live_bpm_text != "--":
+            self._trigger_ble_hr_flash()
+
+        self._ble_hr_anim_target_color = view_model.live_bpm_color
+        self._ble_hr_anim_last_sample_text = view_model.sample_text
+        self._ble_hr_anim_last_color = view_model.live_bpm_color
+        self._apply_ble_hr_animation_frame()
 
     def _render_logs(self, lines: list[str]) -> None:
         self.current_log_lines = list(lines)

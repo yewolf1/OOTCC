@@ -1,0 +1,33 @@
+{
+  "auto_connect_on_launch": false,
+  "scan_timeout_ms": 8000,
+  "reconnect_delay_ms": 3000,
+  "preferred_address": "DB:3D:56:C6:F4:97",
+  "preferred_device_name": "48781-1",
+  "preferred_name_substrings": [
+    "H303",
+    "MAGENE"
+  ],
+  "enemy_speed": {
+    "enabled": true,
+    "command_cooldown_ms": 2000,
+    "levels": [
+      {
+        "bpm": 69,
+        "speed_percent": 175
+      },
+      {
+        "bpm": 70,
+        "speed_percent": 200
+      },
+      {
+        "bpm": 77,
+        "speed_percent": 150
+      },
+      {
+        "bpm": 100,
+        "speed_percent": 499
+      }
+    ]
+  }
+}

@@ -278,6 +278,18 @@ class MainWindowRuntimeTabsBuilderMixin:
         ctk.CTkButton(bridge_card, text="Reverse off", width=120, command=lambda: self.execute_dll_bridge_command("reverse_off")).grid(
             row=3, column=3, padx=10, pady=(0, 10), sticky="ew"
         )
+        ctk.CTkButton(
+            bridge_card,
+            text="Hyper enemies on",
+            width=120,
+            command=lambda: self.execute_dll_bridge_command("hyper_enemies_on"),
+        ).grid(row=4, column=0, padx=10, pady=(0, 10), sticky="ew")
+        ctk.CTkButton(
+            bridge_card,
+            text="Hyper enemies off",
+            width=120,
+            command=lambda: self.execute_dll_bridge_command("hyper_enemies_off"),
+        ).grid(row=4, column=1, padx=10, pady=(0, 10), sticky="ew")
         # ctk.CTkButton(bridge_card, text="Normal", width=120, command=lambda: self.execute_dll_bridge_command("link_normal")).grid(
         #     row=4, column=0, padx=10, pady=(0, 10), sticky="ew"
         # )

@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "OOT Chaotic Controller By Yewolf",
-    "version": "V1.2.4"
+    "version": "V1.3.4"
   },
   "schema_version": 2,
   "runtime_resolution": {
@@ -48,6 +48,12 @@
       ],
       "actor_spawn_fn": [
         "Actor_Spawn"
+      ],
+      "cvar_set_integer_fn": [
+        "CVarSetInteger"
+      ],
+      "ship_init_fn": [
+        "ShipInit::Init"
       ]
     },
     "notes": "PDB symbols are used only when no valid runtime_cache entry exists, or when Refresh forces a rescan."
@@ -104,7 +110,17 @@
       "upgrades_rva": 39365624,
       "quest_items_rva": 39365628,
       "resolved_by": "pdb",
-      "gplaystate_pointer_rva": 39346736
+      "gplaystate_pointer_rva": 39346736,
+      "invisible_flag_rva": 35545724,
+      "reverse_flag_rva": 35545428,
+      "burn_fn_rva": 6070528,
+      "freeze_fn_rva": 6070416,
+      "shock_fn_rva": 6070688,
+      "spawn_actor_fn_rva": 6077632,
+      "actor_spawn_fn_rva": 14456096,
+      "cvar_set_integer_fn_rva": 20524672,
+      "ship_init_fn_rva": 4744256,
+      "update_actor_fn_rva": 6074704
     }
   },
   "legacy_profiles": [

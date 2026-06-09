@@ -48,6 +48,30 @@ echo   }
 echo }
 ) > "%RELEASE_DIR%\config\twitch_config.json"
 
+(
+echo {
+echo   "auto_connect_on_launch": false,
+echo   "scan_timeout_ms": 8000,
+echo   "reconnect_delay_ms": 3000,
+echo   "preferred_address": "",
+echo   "preferred_device_name": "",
+echo   "preferred_name_substrings": [
+echo     "H303",
+echo     "MAGENE"
+echo   ],
+echo   "enemy_speed": {
+echo     "enabled": true,
+echo     "command_cooldown_ms": 2000,
+echo     "levels": [
+echo       { "bpm": 100, "speed_percent": 125 },
+echo       { "bpm": 115, "speed_percent": 150 },
+echo       { "bpm": 130, "speed_percent": 175 },
+echo       { "bpm": 145, "speed_percent": 200 }
+echo     ]
+echo   }
+echo }
+) > "%RELEASE_DIR%\config\bluetooth_hr_config.json"
+
 echo {}> "%RELEASE_DIR%\config\twitch_tokens.json"
 
 powershell -NoProfile -Command "Compress-Archive -Path '%RELEASE_DIR%\*' -DestinationPath '%cd%\%RELEASE_NAME%.zip' -Force"

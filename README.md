@@ -5,6 +5,7 @@ OOTCC is a Windows desktop application that connects Twitch Channel Point redeem
 The application includes:
 - a CustomTkinter desktop UI
 - Twitch integration through EventSub
+- Bluetooth Low Energy heart-rate integration for local chest straps and HR monitors
 - an overlay window for viewers
 - a reward pipeline with support for temporary effects and timers
 - integration with external bridge tools stored in `tools/link_state_bridge`
@@ -64,6 +65,7 @@ To run correctly, the portable package must include:
 - `config/process_names.json`
 - `config/profiles.json`
 - a Twitch config file
+- a Bluetooth HR config file
 - `tools/link_state_bridge/...`
 
 For public distribution, do **not** include your personal Twitch credentials.
@@ -76,6 +78,32 @@ The application reads Twitch configuration from JSON files in `config`.
 
 For a public repo, provide a sample config and let users duplicate or rename it locally.
 Do not commit real tokens.
+
+## Bluetooth HR configuration
+
+The application can also read heart rate directly from a Bluetooth Low Energy device that exposes the standard Heart Rate Service.
+
+Settings live in `config/bluetooth_hr_config.json`.
+
+Important notes:
+- Wear the chest strap before connecting.
+- Moisten the electrodes so the sensor starts broadcasting valid BPM.
+- Close phone fitness apps first, because many straps only allow one Bluetooth connection at a time.
+
+Useful settings:
+- `auto_connect_on_launch`
+- `scan_timeout_ms`
+- `reconnect_delay_ms`
+- `preferred_address`
+- `preferred_device_name`
+- `preferred_name_substrings`
+- `enemy_speed.enabled`
+- `enemy_speed.command_cooldown_ms`
+- `enemy_speed.levels`
+
+Each entry in `enemy_speed.levels` uses:
+- `bpm`
+- `speed_percent`
 
 ## Dependencies
 

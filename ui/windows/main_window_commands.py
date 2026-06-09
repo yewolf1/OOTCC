@@ -155,5 +155,17 @@ class MainWindowCommandMixin:
             self.twitch_test_user_var.get(),
         )
 
+    def connect_ble_hr(self) -> None:
+        self.presenter.connect_ble_hr()
+
+    def disconnect_ble_hr(self) -> None:
+        self.presenter.disconnect_ble_hr()
+
+    def clear_ble_hr_preferred_device(self) -> None:
+        self.presenter.clear_ble_hr_preferred_device()
+
+    def save_ble_hr_levels(self) -> None:
+        self.presenter.save_ble_hr_enemy_speed_levels(self.ble_hr_level_rows())
+
     def open_bridge_log(self) -> None:
         self.open_log_window()

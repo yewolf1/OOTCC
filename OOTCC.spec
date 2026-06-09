@@ -2,6 +2,9 @@ from PyInstaller.utils.hooks import collect_submodules
 
 hidden_imports = (
     collect_submodules("twitchAPI")
+    + collect_submodules("twitch")
+    + collect_submodules("ble_hr")
+    + collect_submodules("bleak")
     + collect_submodules("core")
     + collect_submodules("adapter")
     + collect_submodules("ui")

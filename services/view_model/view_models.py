@@ -92,6 +92,20 @@ class TwitchViewModel:
 
 
 @dataclass(frozen=True)
+class BluetoothHrViewModel:
+    status_text: str
+    config_path: str
+    device_text: str
+    live_bpm_text: str
+    live_bpm_color: str
+    live_detail_text: str
+    sample_text: str
+    rule_text: str
+    hyper_state_text: str
+    level_rows: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
 class AppViewModel:
     status: StatusViewModel
     health: HealthViewModel
@@ -104,4 +118,5 @@ class AppViewModel:
     link_state: LinkStateViewModel
     quest_status: QuestStatusViewModel
     twitch: TwitchViewModel
+    ble_hr: BluetoothHrViewModel
     logs: list[str] = field(default_factory=list)

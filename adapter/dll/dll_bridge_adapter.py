@@ -19,6 +19,11 @@ BRIDGE_COMMANDS: tuple[str, ...] = (
     "spawn_explosion",
     "spawn_cucco_storm",
     "spawn_darklink",
+    "hyper_enemies_on",
+    "hyper_enemies_off",
+)
+BRIDGE_COMMAND_PREFIXES: tuple[str, ...] = (
+    "enemy_speed_percent:",
 )
 
 
@@ -86,7 +91,7 @@ class DllBridgeAdapter:
             "dll_path": str(self.paths.dll_path),
             "host_exists": self.paths.host_path.exists(),
             "dll_exists": self.paths.dll_path.exists(),
-            "supported_commands": list(BRIDGE_COMMANDS),
+            "supported_commands": list(BRIDGE_COMMANDS) + ["enemy_speed_percent:<int>"],
         }
 
     def ensure_ready(self) -> None:
@@ -155,7 +160,10 @@ class DllBridgeAdapter:
         shock_fn: int = 0,
         spawn_actor_fn: int = 0,
         actor_spawn_fn: int = 0,
+        cvar_set_integer_fn: int = 0,
+        ship_init_fn: int = 0,
         actor_ctx: int = 0,
+        update_actor_fn: int = 0,
     ) -> str:
         if play_state <= 0 or player <= 0:
             raise ValueError("Invalid runtime context for DLL bridge")
@@ -172,12 +180,29 @@ class DllBridgeAdapter:
             f"shockFn=0x{shock_fn:016X};"
             f"spawnActorFn=0x{spawn_actor_fn:016X};"
             f"actorSpawnFn=0x{actor_spawn_fn:016X};"
-            f"actorCtx=0x{actor_ctx:016X}"
+            f"cvarSetIntegerFn=0x{cvar_set_integer_fn:016X};"
+            f"shipInitFn=0x{ship_init_fn:016X};"
+            f"actorCtx=0x{actor_ctx:016X};"
+            f"updateActorFn=0x{update_actor_fn:016X}"
         )
         return self._run_host_payload(pid, payload)
 
     def execute(self, pid: int, command: str) -> str:
         normalized = command.strip().lower()
-        if normalized not in BRIDGE_COMMANDS:
+        if normalized not in BRIDGE_COMMANDS and not self._is_supported_dynamic_command(normalized):
             raise ValueError(f"Unsupported bridge command: {command}")
         return self._run_host_payload(pid, normalized)
+
+    def _is_supported_dynamic_command(self, command: str) -> bool:
+        for prefix in BRIDGE_COMMAND_PREFIXES:
+            if not command.startswith(prefix):
+                continue
+            suffix = command[len(prefix):].strip()
+            if not suffix:
+                return False
+            try:
+                int(suffix)
+            except ValueError:
+                return False
+            return True
+        return False

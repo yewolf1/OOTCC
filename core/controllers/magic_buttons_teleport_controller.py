@@ -211,6 +211,16 @@ class MagicButtonsTeleportControllerMixin:
             "actor_spawn_fn": [
                 "Actor_Spawn",
             ],
+            "cvar_set_integer_fn": [
+                "CVarSetInteger",
+            ],
+            "ship_init_fn": [
+                "ShipInit::Init",
+            ],
+            "update_actor_fn": [
+                "GameInteractor::RawAction::UpdateActor",
+                "UpdateActor",
+            ],
         }
         if isinstance(configured, dict):
             for key, value in configured.items():
@@ -281,6 +291,9 @@ class MagicButtonsTeleportControllerMixin:
             "shock_fn": "shock_fn_rva",
             "spawn_actor_fn": "spawn_actor_fn_rva",
             "actor_spawn_fn": "actor_spawn_fn_rva",
+            "cvar_set_integer_fn": "cvar_set_integer_fn_rva",
+            "ship_init_fn": "ship_init_fn_rva",
+            "update_actor_fn": "update_actor_fn_rva",
         }
 
     def _is_dll_symbol_address_valid(self, key: str, address: int) -> bool:
@@ -535,14 +548,19 @@ class MagicButtonsTeleportControllerMixin:
             shock_fn=symbols.get("shock_fn", 0),
             spawn_actor_fn=symbols.get("spawn_actor_fn", 0),
             actor_spawn_fn=symbols.get("actor_spawn_fn", 0),
+            cvar_set_integer_fn=symbols.get("cvar_set_integer_fn", 0),
+            ship_init_fn=symbols.get("ship_init_fn", 0),
             actor_ctx=actor_ctx,
+            update_actor_fn=symbols.get("update_actor_fn", 0),
         )
         self._log(
             "DLL symbols resolved: "
             f"all={symbols}, "
             f"invisible=0x{symbols.get('invisible_flag', 0):016X}, "
             f"reverse=0x{symbols.get('reverse_flag', 0):016X}, "
-            f"burn=0x{symbols.get('burn_fn', 0):016X}"
+            f"burn=0x{symbols.get('burn_fn', 0):016X}, "
+            f"cvar=0x{symbols.get('cvar_set_integer_fn', 0):016X}, "
+            f"updateActor=0x{symbols.get('update_actor_fn', 0):016X}"
         )
         return output
 
