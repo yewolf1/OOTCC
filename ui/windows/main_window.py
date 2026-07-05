@@ -80,6 +80,7 @@ class MainWindow(
         self.teleport_status_vars: dict[str, tk.StringVar] = {}
         self.teleport_random_result_var = tk.StringVar(value="Random pool not loaded")
         self.link_player_address_var = tk.StringVar(value="")
+        self.link_enemy_speed_percent_var = tk.StringVar(value="100")
         self.link_burn_value_var = tk.StringVar(value="120")
         self.link_freeze_value_var = tk.StringVar(value="40")
         self.link_shock_value_var = tk.StringVar(value="40")

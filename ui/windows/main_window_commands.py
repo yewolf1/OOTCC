@@ -127,6 +127,13 @@ class MainWindowCommandMixin:
     def apply_link_state_player_address(self) -> None:
         self.presenter.apply_link_state_player_address(self.link_player_address_var.get())
 
+    def apply_link_enemy_speed_percent(self) -> None:
+        self.presenter.apply_link_enemy_speed_percent(self.link_enemy_speed_percent_var.get())
+
+    def reset_link_enemy_speed_percent(self) -> None:
+        self.link_enemy_speed_percent_var.set("100")
+        self.presenter.apply_link_enemy_speed_percent("100")
+
     def apply_link_burn(self) -> None:
         self.presenter.apply_link_burn(self.link_burn_value_var.get())
 

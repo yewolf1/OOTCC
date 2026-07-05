@@ -215,6 +215,12 @@ class BridgePresenter:
     def apply_link_state_player_address(self, raw_value: str) -> None:
         self._run(lambda: self.controller.set_link_state_player_address(raw_value), "Link state error")
 
+    def apply_link_enemy_speed_percent(self, raw_value: str) -> None:
+        self._run(
+            lambda: self._apply_link_enemy_speed_percent(raw_value),
+            "Link state error",
+        )
+
     def apply_link_burn(self, raw_value: str) -> None:
         self._run(lambda: self.controller.apply_link_burn(int(raw_value)), "Link state error")
 
@@ -234,6 +240,12 @@ class BridgePresenter:
             self.view.show_error(error_title, str(exc))
         finally:
             self.refresh_state()
+
+    def _apply_link_enemy_speed_percent(self, raw_value: str) -> None:
+        value = int(raw_value)
+        if value < 100 or value > 1000:
+            raise ValueError("Enemy speed percent must be between 100 and 1000")
+        self.controller.execute_dll_bridge_command(f"enemy_speed_percent:{value}")
 
     def _build_app_view_model(self, force_runtime_scan: bool = False) -> AppViewModel:
         health_state = self.controller.refresh(force_runtime_scan=force_runtime_scan)

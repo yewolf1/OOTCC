@@ -290,6 +290,32 @@ class MainWindowRuntimeTabsBuilderMixin:
             width=120,
             command=lambda: self.execute_dll_bridge_command("hyper_enemies_off"),
         ).grid(row=4, column=1, padx=10, pady=(0, 10), sticky="ew")
+        ctk.CTkLabel(
+            bridge_card,
+            text="Enemy speed %",
+        ).grid(row=5, column=0, padx=12, pady=(0, 6), sticky="w")
+        ctk.CTkEntry(
+            bridge_card,
+            textvariable=self.link_enemy_speed_percent_var,
+            width=120,
+        ).grid(row=5, column=1, padx=10, pady=(0, 6), sticky="ew")
+        ctk.CTkButton(
+            bridge_card,
+            text="Apply speed",
+            width=120,
+            command=self.apply_link_enemy_speed_percent,
+        ).grid(row=5, column=2, padx=10, pady=(0, 6), sticky="ew")
+        ctk.CTkButton(
+            bridge_card,
+            text="Reset 100%",
+            width=120,
+            command=self.reset_link_enemy_speed_percent,
+        ).grid(row=5, column=3, padx=10, pady=(0, 6), sticky="ew")
+        ctk.CTkLabel(
+            bridge_card,
+            text="Manual test control for enemy speed. Range: 100 to 1000.",
+            justify="left",
+        ).grid(row=6, column=0, columnspan=4, padx=12, pady=(0, 10), sticky="w")
         # ctk.CTkButton(bridge_card, text="Normal", width=120, command=lambda: self.execute_dll_bridge_command("link_normal")).grid(
         #     row=4, column=0, padx=10, pady=(0, 10), sticky="ew"
         # )
@@ -309,19 +335,19 @@ class MainWindowRuntimeTabsBuilderMixin:
         #     row=5, column=1, padx=10, pady=(0, 10), sticky="ew"
         # )
         ctk.CTkButton(bridge_card, text="Lit bomb", width=120, command=lambda: self.execute_dll_bridge_command("spawn_lit_bomb")).grid(
-            row=5, column=2, padx=10, pady=(0, 10), sticky="ew"
+            row=7, column=2, padx=10, pady=(0, 10), sticky="ew"
         )
         ctk.CTkButton(bridge_card, text="Bomb rain", width=120, command=lambda: self.execute_dll_bridge_command("bomb_rain")).grid(
-            row=5, column=3, padx=10, pady=(0, 10), sticky="ew"
+            row=7, column=3, padx=10, pady=(0, 10), sticky="ew"
         )
         ctk.CTkButton(bridge_card, text="Explosion", width=120, command=lambda: self.execute_dll_bridge_command("spawn_explosion")).grid(
-            row=6, column=0, padx=10, pady=(0, 12), sticky="ew"
+            row=8, column=0, padx=10, pady=(0, 12), sticky="ew"
         )
         ctk.CTkButton(bridge_card, text="Cucco storm", width=120, command=lambda: self.execute_dll_bridge_command("spawn_cucco_storm")).grid(
-            row=6, column=1, padx=10, pady=(0, 12), sticky="ew"
+            row=8, column=1, padx=10, pady=(0, 12), sticky="ew"
         )
         ctk.CTkButton(bridge_card, text="Dark Link", width=120, command=lambda: self.execute_dll_bridge_command("spawn_darklink")).grid(
-            row=6, column=2, padx=10, pady=(0, 12), sticky="ew"
+            row=8, column=2, padx=10, pady=(0, 12), sticky="ew"
         )
 
         address_card = ctk.CTkFrame(scroll, corner_radius=12)
