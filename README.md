@@ -130,6 +130,7 @@ See the `LICENSE` file for details.
 # 🤝 Contributions
 
 Suggestions, bug reports, UI ideas and feature requests are always welcome!  
+mail : yewolfdevandstuff@gmail.com
 discord server : https://discord.com/invite/EDpVBx6P5e  
 discord : .yewolf  
 twitch : https://www.twitch.tv/yewolf  
